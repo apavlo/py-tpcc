@@ -36,26 +36,22 @@ class Results:
         self.stop = None
         
     def start():
-        """
-            Mark the benchmark as having been started
-        """
+        """Mark the benchmark as having been started"""
         assert self.start == None
         self.start = datetime.now()
         
     def stop():
-        """
-            Mark the benchmark as having been stopped
-        """
+        """Mark the benchmark as having been stopped"""
         assert self.start != None
         assert self.stop == None
         self.stop = datetime.now()
         
-    def completed(txn_name):
+    def completed(txn):
         """
             Record that the benchmark completed an invocation of the given transaction
         """
-        cnt = self.data.get(txn_name, 0)
-        self.data[txn_name] = cnt + 1
+        cnt = self.data.get(txn, 0)
+        self.data[txn] = cnt + 1
     
     def __str__():
         if self.start == None:
@@ -67,8 +63,8 @@ class Results:
         
         ret = "%s Results [duration=%d seconds]\n%s" % (self.name, duration, "-"*100)
         ret += "\n%22s%-20s%-20s" % ("Transaction", "Total", "Rate")
-        for txn_name in sorted(self.data.keys()):
-            rate = "%.02f" % (self.data[txn_name] / duration)
-            ret += "\n  %-20s%-20s%-20s" % (txn_name, str(self.data[txn_name]), rate)
+        for txn in sorted(self.data.keys()):
+            rate = "%.02f" % (self.data[txn] / duration)
+            ret += "\n  %-20s%-20s%-20s" % (txn, str(self.data[txn]), rate)
         return (ret)
 ## CLASS

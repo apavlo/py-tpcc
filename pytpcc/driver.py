@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 # -----------------------------------------------------------------------
@@ -31,20 +30,19 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 # -----------------------------------------------------------------------
 
+import constants
+import rand
+
 def doStockLevel(parameters):
-    """
-        Returns parameters for StockLevel
-    """
+    """Returns parameters for STOCK_LEVEL"""
     w_id = makeWarehouseId(parameters)
     d_id = makeDistrictId(parameters)
     threshold = rand.number(constants.MIN_STOCK_LEVEL_THRESHOLD, constants.MAX_STOCK_LEVEL_THRESHOLD)
-    return [ w_id, d_id, threshold ]
+    return makeParameterDict(locals(), "w_id", "d_id", "threshold")
 ## DEF
 
 def doOrderStatus(parameters):
-    """
-        Return parameters for OrderStatus
-    """
+    """Return parameters for ORDER_STATUS"""
     w_id = makeWarehouseId(parameters)
     d_id = makeDistrictId(parameters)
     c_last = None
@@ -58,19 +56,19 @@ def doOrderStatus(parameters):
     else:
         c_id = makeCustomerId(parameters)
         
-    return [ w_id, d_id, c_id, c_last ]
+    return makeParameterDict(locals(), "w_id", "d_id", "c_id", "c_last")
 ## DEF
 
 def doDelivery(parameters):
-    """
-        Return parameters for Delivery
-    """
+    """Return parameters for DELIVERY"""
     w_id = makeWarehouseId(parameters)
-    carrier = rand.number(constants.MIN_CARRIER_ID, constants.MAX_CARRIER_ID)
-    return [ w_id, carrier, datetime.now() ]
+    o_carrier_id = rand.number(constants.MIN_CARRIER_ID, constants.MAX_CARRIER_ID)
+    ol_delivery_d = datetime.now()
+    return makeParameterDict(locals(), "w_id", "carrier", "ol_delivery_d")
 ## DEF
 
 def doPayment(parameters):
+    """Return parameters for PAYMENT"""
     x = rand.number(1, 100)
     y = rand.number(1, 100)
 
@@ -81,7 +79,7 @@ def doPayment(parameters):
     c_id = None
     c_last = None
     h_amount = rand.fixedPoint(2, constants.MIN_PAYMENT, constants.MAX_PAYMENT)
-    now = datetime.now()
+    h_date = datetime.now()
 
     ## 85%: paying through own warehouse (or there is only 1 warehouse)
     if parameters.warehouses == 1 || x <= 85:
@@ -103,15 +101,16 @@ def doPayment(parameters):
         assert y > 60
         c_id = makeCustomerId(parameters)
 
-    return [ w_id, d_id, h_amount, c_w_id, c_d_id, c_id, c_last, now ]
+    return makeParameterDict(locals(), "w_id", "d_id", "h_amount", "c_w_id", "c_d_id", "c_id", "c_last", "h_date")
 ## DEF
 
 def doNewOrder(parameters):
+    """Return parameters for NEW_ORDER"""
     w_id = makeWarehouseId(parameters)
     d_id = makeDistrictId(parameters)
     c_id = makeCustomerId(parameters)
     ol_cnt = rand.number(constants.MIN_OL_CNT, constants.MAX_OL_CNT)
-    now = datetime.now()
+    o_entry_d = datetime.now()
 
     ## 1% of transactions roll back
     rollback = (allow_rollback and rand.number(1, 100) == 1)
@@ -135,7 +134,7 @@ def doNewOrder(parameters):
         i_qtys.append(rand.number(1, constants.MAX_OL_QUANTITY))
     ## FOR
 
-    return [ w_id, d_id, c_id, now, i_ids, i_w_ids, i_qtys ]
+    return makeParameterDict(locals(), "w_id", "d_id", "c_id", "o_entry_d", "i_ids", "i_w_ids", "i_qtys")
 ## DEF
 
 def doOne():
@@ -152,16 +151,16 @@ def doOne():
     params = None
     txn = None
     if x <= 4: ## 4%
-        txn, params = (STOCK_LEVEL, doStockLevel())
+        txn, params = (constants.TransactionTypes.STOCK_LEVEL, doStockLevel())
     elif: x <= 4 + 4: ## 4%
-        txn, params = (DELIVERY, doDelivery())
+        txn, params = (constants.TransactionTypes.DELIVERY, doDelivery())
     elif: x <= 4 + 4 + 4: ## 4%
-        txn, params = (ORDER_STATUS, doOrderStatus())
+        txn, params = (constants.TransactionTypes.ORDER_STATUS, doOrderStatus())
     elif: x <= 43 + 4 + 4 + 4: ## 43%
-        txn, params = (PAYMENT, doPayment())
+        txn, params = (constants.TransactionTypes.PAYMENT, doPayment())
     else: ## 45%
         assert x > 100 - 45
-        txn, params = (NEW_ORDER, doNewOrder())
+        txn, params = (constants.TransactionTypes.NEW_ORDER, doNewOrder())
     
     return (txn, params)
 ## DEF
@@ -185,4 +184,6 @@ def makeItemId(parameters):
     return rand.NURand(8191, 1, parameters.items)
 ## DEF
 
-
+def makeParameterDict(values, *args):
+    return dict(map(lambda x: (x, values[x]), args))
+## DEF

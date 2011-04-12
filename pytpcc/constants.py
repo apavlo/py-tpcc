@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-
 # -----------------------------------------------------------------------
 # Copyright (C) 2011
 # Andy Pavlo
@@ -129,8 +128,38 @@ MAX_PAYMENT = 5000.0
 #  Indicates "brand" items and stock in i_data and s_data.
 ORIGINAL_STRING = "ORIGINAL"
 
-ORDER_STATUS = "orderstatus"
-DELIVERY = "delivery"
-PAYMENT = "payment"
-NEWORDER = "neworder"
-STOCK_LEVEL = "stocklevel"
+# Table Names
+TABLENAME_ITEM      = "item"
+TABLENAME_WAREHOUSE = "warehouse"
+TABLENAME_DISTRICT  = "district"
+TABLENAME_CUSTOMER  = "customer"
+TABLENAME_STOCK     = "stock"
+TABLENAME_ORDERS    = "orders"
+TABLENAME_NEW_ORDER = "new_order"
+TABLENAME_ORDER_LINE = "order_line"
+TABLENAME_HISTORY   = "history"
+
+ALL_TABLES = [
+    TABLENAME_ITEM,
+    TABLENAME_WAREHOUSE,
+    TABLENAME_DISTRICT,
+    TABLENAME_CUSTOMER,
+    TABLENAME_STOCK,
+    TABLENAME_ORDERS,
+    TABLENAME_NEW_ORDER,
+    TABLENAME_ORDER_LINE,
+    TABLENAME_HISTORY,
+]
+
+# Transaction Types
+def enum(*sequential, **named):
+    enums = dict(map(lambda x: (x, x), sequential))
+    # dict(zip(sequential, range(len(sequential))), **named)
+    return type('Enum', (), enums)
+TransactionTypes = enum(
+    "DELIVERY",
+    "NEW_ORDER",
+    "ORDER_STATUS",
+    "PAYMENT",
+    "STOCK_LEVEL",
+)

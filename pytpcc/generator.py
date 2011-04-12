@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 # -----------------------------------------------------------------------
 # Copyright (C) 2011
 # Andy Pavlo
@@ -33,6 +32,10 @@
 
 import os
 import sys
+import rand
+from datetime import datetime
+
+import constants
 
 def generateItem(id, original):
     i_id = id
@@ -46,18 +49,17 @@ def generateItem(id, original):
 ## DEF
 
 def generateWarehouse(w_id):
-    w_tax = makeTax()
+    w_tax = generateTax()
     w_ytd = constants.INITIAL_W_YTD
-    w_address = addAddress()
-    return [w_tx, w_ytd] + w_addresss
+    w_address = generateAddress()
+    return [w_id, w_tax, w_ytd] + w_address
 ## DEF
 
-def generateDistrict(d_w_id, d_id):
-    d_tax = makeTax()
+def generateDistrict(d_w_id, d_id, d_next_o_id):
+    d_tax = generateTax()
     d_ytd = constants.INITIAL_D_YTD
-    d_next_o_id = m_parameters.customersPerDistrict + 1
-    d_address = addAddress()
-    return [d_tax, d_ytd, d_next_o_id] + d_address
+    d_address = generateAddress()
+    return [d_id, d_w_id, d_tax, d_ytd, d_next_o_id] + d_address
 ## DEF
 
 def generateCustomer(c_w_id, c_d_id, c_id, badCredit, doesReplicateName):
@@ -85,7 +87,7 @@ def generateCustomer(c_w_id, c_d_id, c_id, badCredit, doesReplicateName):
     c_street2 = rand.astring(constants.MIN_STREET, constants.MAX_STREET)
     c_city = rand.astring(constants.MIN_CITY, constants.MAX_CITY)
     c_state = rand.astring(constants.STATE, constants.STATE)
-    c_zip = makeZip()
+    c_zip = generateZip()
 
     return [ c_id, c_d_id, c_w_id, c_first, c_middle, c_last, \
              c_street1, c_street2, c_city, c_state, c_zip, \
@@ -93,49 +95,87 @@ def generateCustomer(c_w_id, c_d_id, c_id, badCredit, doesReplicateName):
              c_ytd_payment, c_payment_cnt, c_delivery_cnt, c_data ]
 ## DEF
 
-def addAddress():
+def generateOrder(o_w_id, o_d_id, o_id, o_c_id, o_ol_cnt, newOrder):
+    """Returns the generated o_ol_cnt value."""
+    o_entry_d = datetime.now()
+    o_carrier_id = constants.NULL_CARRIER_ID if newOrder else rand.number(constants.MIN_CARRIER_ID, constants.MAX_CARRIER_ID)
+    o_all_local = constants.INITIAL_ALL_LOCAL
+    return [ o_id, o_d_id, o_w_id, o_c_id, o_entry_d, o_carrier_id, o_ol_cnt, o_all_local ]
+## DEF
+
+def generateOrderLine(ol_w_id, ol_d_id, ol_o_id, ol_number, max_items, newOrder):
+    ol_i_id = rand.number(1, max_items)
+    ol_supply_w_id = ol_w_id
+    ol_delivery_d = datetime.now()
+    ol_quantity = constants.INITIAL_QUANTITY
+
+    if newOrder == False:
+        ol_amount = 0.00
+    else:
+        ol_amount = rand.fixedPoint(constants.MONEY_DECIMALS, constants.MIN_AMOUNT, constants.MAX_PRICE * constants.MAX_OL_QUANTITY)
+        ol_delivery_d = None
+    ol_dist_info = rand.astring(constants.DIST, constants.DIST)
+
+    return [ ol_o_id, ol_d_id, ol_w_id, ol_number, ol_i_id, ol_supply_w_id, ol_delivery_d, ol_quantity, ol_amount, ol_dist_info ]
+## DEF
+
+def generateStock(s_w_id, s_i_id, original):
+    s_quantity = rand.number(constants.MIN_QUANTITY, constants.MAX_QUANTITY);
+    s_ytd = 0;
+    s_order_cnt = 0;
+    s_remote_cnt = 0;
+
+    s_data = rand.astring(constants.MIN_I_DATA, constants.MAX_I_DATA);
+    if original: fillOriginal(s_data)
+
+    s_dists = [ ]
+    for i in range(0, constants.DISTRICTS_PER_WAREHOUSE):
+        s_dists.append(rand.astring(constants.DIST, constants.DIST))
+    
+    return [ s_i_id, s_w_id, s_quantity ] + \
+           s_dists + \
+           [ s_ytd, s_order_cnt, s_remote_cnt, s_data ]
+## DEF
+
+def generateHistory(h_c_w_id, h_c_d_id, h_c_id):
+    h_w_id = h_c_w_id
+    h_d_id = h_c_d_id
+    h_date = datetime.now()
+    h_amount = constants.INITIAL_AMOUNT
+    h_data = rand.astring(constants.MIN_DATA, constants.MAX_DATA)
+    return [ h_c_id, h_c_d_id, h_c_w_id, h_d_id, h_w_id, h_date, h_amount, h_data ]
+## DEF
+
+def generateAddress():
     """
         Returns a name and a street address 
         Used by both generateWarehouse and generateDistrict.
     """
     name = rand.astring(constants.MIN_NAME, constants.MAX_NAME)
-    return [ name ] + addStreetAddress()
+    return [ name ] + generateStreetAddress()
 ## DEF
 
-def addStreetAddress():
+def generateStreetAddress():
     """
         Returns a list for a street address
         Used for warehouses, districts and customers.
     """
-    street1 = m_rand.astring(constants.MIN_STREET, constants.MAX_STREET)
-    street2 = m_rand.astring(constants.MIN_STREET, constants.MAX_STREET)
-    city = m_rand.astring(constants.MIN_CITY, constants.MAX_CITY)
-    state = m_rand.astring(constants.STATE, constants.STATE)
-    zip = makeZip()
+    street1 = rand.astring(constants.MIN_STREET, constants.MAX_STREET)
+    street2 = rand.astring(constants.MIN_STREET, constants.MAX_STREET)
+    city = rand.astring(constants.MIN_CITY, constants.MAX_CITY)
+    state = rand.astring(constants.STATE, constants.STATE)
+    zip = generateZip()
 
     return [ street1, street2, city, state, zip ]
 ## DEF
 
-def selectUniqueIds(numUnique, minimum, maximum):
-    rows = set()
-    for i in range(0, numUnique):
-        index = None
-        while index == None or index in rows:
-            index = rand.number(minimum, maximum)
-        ## WHILE
-        rows.add(index)
-    ## FOR
-    assert len(rows) == numUnique
-    return rows
-## DEF
-
-def makeTax():
+def generateTax():
     return rand.fixedPoint(constants.TAX_DECIMALS, constants.MIN_TAX, constants.MAX_TAX)
 ## DEF
 
-def makeZip():
+def generateZip():
     length = constants.ZIP_LENGTH - len(constants.ZIP_SUFFIX)
-    return m_rand.nstring(length, length) + constants.ZIP_SUFFIX
+    return rand.nstring(length, length) + constants.ZIP_SUFFIX
 ## DEF
 
 def fillOriginal(data):
@@ -143,7 +183,7 @@ def fillOriginal(data):
         a string with ORIGINAL_STRING at a random position
     """
     originalLength = len(constants.ORIGINAL_STRING)
-    position = m_rand.number(0, len(data) - originalLength)
+    position = rand.number(0, len(data) - originalLength)
     out = data[:position] + constants.ORIGINAL_STRING + data[position + originalLength:]
     assert len(out) == len(data)
     return out
