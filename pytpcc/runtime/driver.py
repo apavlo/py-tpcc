@@ -30,8 +30,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 # -----------------------------------------------------------------------
 
-import constants
-import rand
+from util import *
 
 def doStockLevel(parameters):
     """Returns parameters for STOCK_LEVEL"""
@@ -82,7 +81,7 @@ def doPayment(parameters):
     h_date = datetime.now()
 
     ## 85%: paying through own warehouse (or there is only 1 warehouse)
-    if parameters.warehouses == 1 || x <= 85:
+    if parameters.warehouses == 1 or x <= 85:
         c_w_id = w_id
         c_d_id = d_id
     ## 15%: paying through another warehouse:
@@ -91,7 +90,6 @@ def doPayment(parameters):
         c_w_id = rand.numberExcluding(parameters.starting_warehouse, parameters.max_w_id, w_id)
         assert c_w_id != w_id
         c_d_id = makeDistrictId(parameters)
-    }
 
     ## 60%: payment by last name
     if y <= 60:
@@ -152,11 +150,11 @@ def doOne():
     txn = None
     if x <= 4: ## 4%
         txn, params = (constants.TransactionTypes.STOCK_LEVEL, doStockLevel())
-    elif: x <= 4 + 4: ## 4%
+    elif x <= 4 + 4: ## 4%
         txn, params = (constants.TransactionTypes.DELIVERY, doDelivery())
-    elif: x <= 4 + 4 + 4: ## 4%
+    elif x <= 4 + 4 + 4: ## 4%
         txn, params = (constants.TransactionTypes.ORDER_STATUS, doOrderStatus())
-    elif: x <= 43 + 4 + 4 + 4: ## 43%
+    elif x <= 43 + 4 + 4 + 4: ## 43%
         txn, params = (constants.TransactionTypes.PAYMENT, doPayment())
     else: ## 45%
         assert x > 100 - 45

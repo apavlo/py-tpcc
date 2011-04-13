@@ -32,9 +32,9 @@
 
 import os
 import sys
-import rand
 from datetime import datetime
 
+from util import *
 import constants
 
 def generateItem(id, original):

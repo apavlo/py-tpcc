@@ -29,8 +29,8 @@ import logging
 from random import shuffle
 
 import generator
-import rand
-from constants import *
+import constants
+from util import *
 
 class Loader:
     
@@ -71,24 +71,24 @@ class Loader:
             tuples.append(generator.generateItem(i, original))
             total_tuples += 1
             if len(tuples) == batch_size:
-                logging.debug("LOAD - %s: %5d / %d" % (TABLENAME_ITEM, total_tuples, self.params.items))
-                self.handle.loadTuples(TABLENAME_ITEM, tuples)
+                logging.debug("LOAD - %s: %5d / %d" % (constants.TABLENAME_ITEM, total_tuples, self.params.items))
+                self.handle.loadTuples(constants.TABLENAME_ITEM, tuples)
                 tuples = [ ]
         ## FOR
         if len(tuples) > 0:
-            logging.debug("LOAD - %s: %5d / %d" % (TABLENAME_ITEM, total_tuples, self.params.items))
-            self.handle.loadTuples(TABLENAME_ITEM, tuples)
+            logging.debug("LOAD - %s: %5d / %d" % (constants.TABLENAME_ITEM, total_tuples, self.params.items))
+            self.handle.loadTuples(constants.TABLENAME_ITEM, tuples)
     ## DEF
 
     ## ==============================================
     ## loadWarehouse
     ## ==============================================
     def loadWarehouse(self, w_id):
-        logging.debug("LOAD - %s: %d / %d" % (TABLENAME_WAREHOUSE, w_id, self.params.warehouses))
+        logging.debug("LOAD - %s: %d / %d" % (constants.TABLENAME_WAREHOUSE, w_id, self.params.warehouses))
         
         ## WAREHOUSE
         w_tuples = [ generator.generateWarehouse(w_id) ]
-        self.handle.loadTuples(TABLENAME_WAREHOUSE, w_tuples)
+        self.handle.loadTuples(constants.TABLENAME_WAREHOUSE, w_tuples)
 
         ## DISTRICT
         d_tuples = [ ]
@@ -137,12 +137,12 @@ class Loader:
                 if newOrder: no_tuples.append([o_id, d_id, w_id])
             ## FOR
             
-            self.handle.loadTuples(TABLENAME_CUSTOMER, c_tuples)
-            self.handle.loadTuples(TABLENAME_ORDERS, o_tuples)
-            self.handle.loadTuples(TABLENAME_ORDER_LINE, ol_tuples)
-            self.handle.loadTuples(TABLENAME_NEW_ORDER, no_tuples)
+            self.handle.loadTuples(constants.TABLENAME_CUSTOMER, c_tuples)
+            self.handle.loadTuples(constants.TABLENAME_ORDERS, o_tuples)
+            self.handle.loadTuples(constants.TABLENAME_ORDER_LINE, ol_tuples)
+            self.handle.loadTuples(constants.TABLENAME_NEW_ORDER, no_tuples)
         ## FOR
-        self.handle.loadTuples(TABLENAME_DISTRICT, d_tuples)
+        self.handle.loadTuples(constants.TABLENAME_DISTRICT, d_tuples)
         
         ## Select 10% of the stock to be marked "original"
         s_tuples = [ ]
@@ -151,6 +151,6 @@ class Loader:
             original = (i_id in selectedRows)
             s_tuples.append(generator.generateStock(w_id, i_id, original))
         ## FOR
-        self.handle.loadTuples(TABLENAME_STOCK, s_tuples)
+        self.handle.loadTuples(constants.TABLENAME_STOCK, s_tuples)
         
     ## DEF
