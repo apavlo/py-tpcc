@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # -----------------------------------------------------------------------
 # Copyright (C) 2011
@@ -39,6 +38,7 @@ class Results:
         """Mark the benchmark as having been started"""
         assert self.start == None
         self.start = datetime.now()
+        return self.start
         
     def stop():
         """Mark the benchmark as having been stopped"""
@@ -47,9 +47,7 @@ class Results:
         self.stop = datetime.now()
         
     def completed(txn):
-        """
-            Record that the benchmark completed an invocation of the given transaction
-        """
+        """Record that the benchmark completed an invocation of the given transaction"""
         cnt = self.data.get(txn, 0)
         self.data[txn] = cnt + 1
     

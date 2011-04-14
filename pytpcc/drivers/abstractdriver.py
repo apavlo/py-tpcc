@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # -----------------------------------------------------------------------
 # Copyright (C) 2011
@@ -25,20 +24,55 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 # -----------------------------------------------------------------------
 
+from datetime import datetime
+
 ## ==============================================
 ## AbstractDriver
 ## ==============================================
 class AbstractDriver(object):
-    def __init__(self, name):
+    def __init__(self, name, ddl):
         self.name = name
+        self.ddl = ddl
         self.config = None
+    
+    def makeDefaultConfig(self):
+        """This function needs to be implemented by all sub-classes.
+        It should return the items that need to be in your implementation's configuration file.
+        Each item in the list is a triplet containing: ( <PARAMETER NAME>, <DESCRIPTION>, <DEFAULT VALUE> )
+        """
+        raise NotImplementedError("%s does not implement makeDefaultConfig" % (self.name))
     
     def loadConfig(self, config):
         self.config = config
         
+    def formatConfig(self, config):
+        ret =  "# %s Configuration File\n" % (self.name.title())
+        ret += "# Created %s" % (datetime.now())
+        
+        for name, desc, default in config:
+            if default == None: default = ""
+            ret += "\n\n# %s\n%-20s = %s" % (desc, name, default) 
+        return (ret)
+        
+    def loadStart(self):
+        """Callback before the loading phase starts"""
+        return None
+        
+    def loadFinish(self):
+        """Callback after the loading phase finishes"""
+        return None
+        
     def loadTuples(self, table, tuples):
         """Load a list of tuples into the target table"""
         raise NotImplementedError("%s does not loadTuples" % (self.name))
+        
+    def executeStart(self):
+        """Callback before the execution phase starts"""
+        return None
+        
+    def executeFinish(self):
+        """Callback after the execution phase finishes"""
+        return None
         
     def executeTransaction(self, txn, params):
         """Execute a transaction based on the given name"""
@@ -55,7 +89,7 @@ class AbstractDriver(object):
             result = doStockLevel(self, params)
         else:
             assert False, "Unexpected TransactionType: " + txn
-        return
+        return result
         
     def doDelivery(self, params):
         """Execute DELIVERY Transaction

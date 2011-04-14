@@ -49,27 +49,29 @@ logging.basicConfig(level = logging.INFO,
                     datefmt="%m-%d-%Y %H:%M:%S",
                     stream = sys.stdout)
                     
-OPT_DEBUG       = False
-OPT_WAREHOUSES  = 10
-OPT_SCALEFACTOR = 1
-OPT_DURATION    = 60
-OPT_NO_LOAD     = False
-OPT_NO_EXECUTE  = False
+OPT_DEBUG        = False
+OPT_WAREHOUSES   = 10
+OPT_SCALEFACTOR  = 1
+OPT_DURATION     = 60
+OPT_NO_LOAD      = False
+OPT_NO_EXECUTE   = False
+OPT_PRINT_CONFIG = False
+OPT_DDL          = os.path.realpath(os.path.join(os.path.dirname(__file__), "tpcc.sql"))
 
 ## ==============================================
 ## create_handle
 ## ==============================================
-def create_handle(name):
+def create_handle(name, ddl):
     full_name = "%sDriver" % name.title()
     mod = __import__('drivers.%s' % full_name.lower(), globals(), locals(), [full_name])
     klass = getattr(mod, full_name)
-    return klass()
+    return klass(ddl)
 ## DEF
 
 ## ==============================================
 ## executeDriver
 ## ==============================================
-def executeDriver(handle, duration, warehouses, scalefactor):
+def executeDriver(handle, duration, parameters):
     results = Results(handle)
     results.start()
     
@@ -93,6 +95,8 @@ if __name__ == '__main__':
         "no-load",
         ## Disable executing the workload
         "no-execute",
+        ## Print out the default configuration file for the system and exit
+        "print-config",
         ## Enable debug logging
         "debug",
     ])
@@ -128,28 +132,42 @@ if __name__ == '__main__':
     system_target = args[0]
     assert system_target, "Missing target system name"
     
-    system_config = { "directory": "/tmp" } # TODO
+    system_config = { "directory": "/tmp",
+                      "database": "/tmp/tpcc.db",
+                      "reset":    False} # TODO
     #config_target = args[1]
     #assert config_target, "Missing target system configuration path"
     #with open(config_target, "r") as f:
         #json_config = json.load(f)
+
+    ## Create the handle we'll need to use
+    handle = create_handle(system_target, OPT_DDL)
+    assert handle != None, "Failed to create '%s' handle" % system_target
+    if OPT_PRINT_CONFIG:
+        config = handle.makeDefaultConfig()
+        print handle.formatConfig(config)
+        sys.exit(0)
     
+    handle.loadConfig(system_config)
+
+
     ## Create ScaleParameters
     parameters = scaleparameters.makeWithScaleFactor(OPT_WAREHOUSES, OPT_SCALEFACTOR)
     nurand = rand.setNURand(nurand.makeForLoad())
     
-    handle = create_handle(system_target)
-    assert handle != None, "Failed to create '%s' handle" % system_target
-    handle.loadConfig(system_config)
     
     ## DATA LOADER!!!
     if not OPT_NO_LOAD:
-        loader.Loader(handle, parameters).executeLoader()
+        handle.loadStart()
+        loader.Loader(handle, parameters).execute()
+        handle.loadFinish()
     sys.exit(1)
     
     ## WORKLOAD DRIVER!!!
-    if not OPT_NO_EXECUTE: 
-        results = executeDriver(handle, results, OPT_WAREHOUSES, OPT_SCALEFACTOR)
+    if not OPT_NO_EXECUTE:
+        handle.executeStart()
+        results = executor.Executor(handle, parameters).execute(OPT_DURATION)
+        handle.executeFinish()
         print results
     ## IF
     

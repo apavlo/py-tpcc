@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # -----------------------------------------------------------------------
 # Copyright (C) 2011
@@ -27,31 +26,52 @@
 
 import os
 import csv
+from datetime import datetime
+
 from abstractdriver import *
 
 ## ==============================================
 ## CSVDriver
 ## ==============================================
 class CsvDriver(AbstractDriver):
+    DEFAULT_CONFIG = [
+        ( "table_directory", "The path to the directory to store the table CSV files", "/tmp/tpcc-tables" ),
+        ( "txn_directory", "The path to the directory to store the txn CSV files", "/tmp/tpcc-txns" ),
+    ]
     
-    def __init__(self):
-        super(CsvDriver, self).__init__("csv")
-        self.directory = None
-        self.outputs = { }
-        
+    def __init__(self, ddl):
+        super(CsvDriver, self).__init__("csv", ddl)
+        self.table_directory = None
+        self.table_outputs = { }
+        self.txn_directory = None
+        self.txn_outputs = { }
     ## DEF
     
     def loadConfig(self, config):
-        self.directory = config["directory"]
-        assert os.path.exists(self.directory), "Invalid directory '%s'" % self.directory
+        for key in map(lambda x: x[0], CsvDriver.DEFAULT_CONFIG):
+            assert key in config, "Missing parameter '%s' in %s configuration" % (key, self.name)
+        
+        self.table_directory = config["table_directory"]
+        if not os.path.exists(self.table_directory): os.makedirs(self.table_directory)
+        
+        self.table_directory = config["txn_directory"]
+        if not os.path.exists(self.txn_directory): os.makedirs(self.txn_directory)
     ## DEF
     
     def loadTuples(self, table, tuples):
-        if not table in self.outputs:
-            path = os.path.join(self.directory, "%s.csv" % table)
-            self.outputs[table] = csv.writer(open(path, 'wb'), quoting=csv.QUOTE_ALL)
+        if not table in self.table_outputs:
+            path = os.path.join(self.table_directory, "%s.csv" % table)
+            self.table_outputs[table] = csv.writer(open(path, 'wb'), quoting=csv.QUOTE_ALL)
         ## IF
-        self.outputs[table].writerows(tuples)
+        self.table_outputs[table].writerows(tuples)
+    ## DEF
+    
+    def executeTransaction(txn, params):
+        if not txn in self.txn_outputs:
+            path = os.path.join(self.txn_directory, "%s.csv" % txn)
+            self.txn_outputs[txn] = csv.writer(open(path, 'wb'), quoting=csv.QUOTE_ALL)
+        ## IF
+        self.txn_outputs[txn].writerows([datetime.now()] + tuples)
     ## DEF
 ## CLASS
 

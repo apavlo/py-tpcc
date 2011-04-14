@@ -1,3 +1,3 @@
 # -*- coding: utf-8 -*-
 
-__all__ = ["driver", "loader", "generator"]
+__all__ = ["executor", "loader"]
