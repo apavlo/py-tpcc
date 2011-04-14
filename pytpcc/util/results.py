@@ -28,32 +28,32 @@ from datetime import datetime
 
 class Results:
     
-    def __init__(name):
+    def __init__(self, name):
         self.name = name
         self.data = { }
         self.start = None
         self.stop = None
         
-    def start():
+    def startBenchmark(self):
         """Mark the benchmark as having been started"""
         assert self.start == None
         self.start = datetime.now()
         return self.start
         
-    def stop():
+    def stopBenchmark(self):
         """Mark the benchmark as having been stopped"""
         assert self.start != None
         assert self.stop == None
         self.stop = datetime.now()
         
-    def completed(txn):
+    def completedTransaction(self, txn):
         """Record that the benchmark completed an invocation of the given transaction"""
         cnt = self.data.get(txn, 0)
         self.data[txn] = cnt + 1
     
-    def __str__():
+    def __str__(self):
         if self.start == None:
-            raise Exception("Benchmark not started")
+            return "Benchmark not started"
         if self.stop == None:
             duration = (datetime.now() - self.start).seconds
         else:

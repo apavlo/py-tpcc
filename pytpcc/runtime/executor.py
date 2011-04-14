@@ -42,19 +42,19 @@ class Executor:
         self.params = parameters
     ## DEF
     
-    def execute(self, duration):
+    def execute(self, results, duration):
+        assert results
         logging.info("Executing benchmark for %d seconds" % duration)
-        results = Results(handle)
-        start = results.start()
+        start = results.startBenchmark()
 
         while (datetime.now() - start).seconds <= duration:
             txn, params = self.doOne()
             logging.info("Executing '%s' transaction" % txn)
             self.handle.executeTransaction(txn, params)
-            results.completed(txn)
+            results.completedTransaction(txn)
         ## WHILE
             
-        results.stop()
+        results.stopBenchmark()
         return (results)
     ## DEF
     
@@ -68,32 +68,32 @@ class Executor:
         params = None
         txn = None
         if x <= 4: ## 4%
-            txn, params = (constants.TransactionTypes.STOCK_LEVEL, doStockLevel())
+            txn, params = (constants.TransactionTypes.STOCK_LEVEL, self.doStockLevel())
         elif x <= 4 + 4: ## 4%
-            txn, params = (constants.TransactionTypes.DELIVERY, doDelivery())
+            txn, params = (constants.TransactionTypes.DELIVERY, self.doDelivery())
         elif x <= 4 + 4 + 4: ## 4%
-            txn, params = (constants.TransactionTypes.ORDER_STATUS, doOrderStatus())
+            txn, params = (constants.TransactionTypes.ORDER_STATUS, self.doOrderStatus())
         elif x <= 43 + 4 + 4 + 4: ## 43%
-            txn, params = (constants.TransactionTypes.PAYMENT, doPayment())
+            txn, params = (constants.TransactionTypes.PAYMENT, self.doPayment())
         else: ## 45%
             assert x > 100 - 45
-            txn, params = (constants.TransactionTypes.NEW_ORDER, doNewOrder())
+            txn, params = (constants.TransactionTypes.NEW_ORDER, self.doNewOrder())
         
         return (txn, params)
     ## DEF
     
     def doStockLevel(self):
         """Returns parameters for STOCK_LEVEL"""
-        w_id = makeWarehouseId(self.parameters)
-        d_id = makeDistrictId(self.parameters)
+        w_id = self.makeWarehouseId()
+        d_id = self.makeDistrictId()
         threshold = rand.number(constants.MIN_STOCK_LEVEL_THRESHOLD, constants.MAX_STOCK_LEVEL_THRESHOLD)
         return makeParameterDict(locals(), "w_id", "d_id", "threshold")
     ## DEF
 
     def doOrderStatus(self):
         """Return parameters for ORDER_STATUS"""
-        w_id = makeWarehouseId(self.parameters)
-        d_id = makeDistrictId(self.parameters)
+        w_id = self.makeWarehouseId()
+        d_id = self.makeDistrictId()
         c_last = None
         c_id = None
         
@@ -103,17 +103,17 @@ class Executor:
 
         ## 40%: order status by id
         else:
-            c_id = makeCustomerId(self.parameters)
+            c_id = self.makeCustomerId()
             
         return makeParameterDict(locals(), "w_id", "d_id", "c_id", "c_last")
     ## DEF
 
     def doDelivery(self):
         """Return parameters for DELIVERY"""
-        w_id = makeWarehouseId(self.parameters)
+        w_id = self.makeWarehouseId()
         o_carrier_id = rand.number(constants.MIN_CARRIER_ID, constants.MAX_CARRIER_ID)
         ol_delivery_d = datetime.now()
-        return makeParameterDict(locals(), "w_id", "carrier", "ol_delivery_d")
+        return makeParameterDict(locals(), "w_id", "o_carrier_id", "ol_delivery_d")
     ## DEF
 
     def doPayment(self):
@@ -121,8 +121,8 @@ class Executor:
         x = rand.number(1, 100)
         y = rand.number(1, 100)
 
-        w_id = makeWarehouseId(self.parameters)
-        d_id = makeDistrictId(self.parameters)
+        w_id = self.makeWarehouseId()
+        d_id = self.makeDistrictId()
         c_w_id = None
         c_d_id = None
         c_id = None
@@ -139,29 +139,29 @@ class Executor:
             ## select in range [1, num_warehouses] excluding w_id
             c_w_id = rand.numberExcluding(self.params.starting_warehouse, self.params.max_w_id, w_id)
             assert c_w_id != w_id
-            c_d_id = makeDistrictId(self.parameters)
+            c_d_id = self.makeDistrictId()
 
         ## 60%: payment by last name
         if y <= 60:
-            c_last = generator.makeRandomLastName(self.params.customersPerDistrict)
+            c_last = rand.makeRandomLastName(self.params.customersPerDistrict)
         ## 40%: payment by id
         else:
             assert y > 60
-            c_id = makeCustomerId(self.parameters)
+            c_id = self.makeCustomerId()
 
         return makeParameterDict(locals(), "w_id", "d_id", "h_amount", "c_w_id", "c_d_id", "c_id", "c_last", "h_date")
     ## DEF
 
     def doNewOrder(self):
         """Return parameters for NEW_ORDER"""
-        w_id = makeWarehouseId(self.parameters)
-        d_id = makeDistrictId(self.parameters)
-        c_id = makeCustomerId(self.parameters)
+        w_id = self.makeWarehouseId()
+        d_id = self.makeDistrictId()
+        c_id = self.makeCustomerId()
         ol_cnt = rand.number(constants.MIN_OL_CNT, constants.MAX_OL_CNT)
         o_entry_d = datetime.now()
 
         ## 1% of transactions roll back
-        rollback = (allow_rollback and rand.number(1, 100) == 1)
+        rollback = False # FIXME rand.number(1, 100) == 1
 
         i_ids = [ ]
         i_w_ids = [ ]
@@ -170,7 +170,7 @@ class Executor:
             if rollback and i + 1 == ol_cnt:
                 i_ids.append(self.params.items + 1)
             else:
-                i_ids.append(generator.makeItemId(self.parameters))
+                i_ids.append(self.makeItemId())
 
             ## 1% of items are from a remote warehouse
             remote = (rand.number(1, 100) == 1)
@@ -204,7 +204,8 @@ class Executor:
     def makeItemId(self):
         return rand.NURand(8191, 1, self.params.items)
     ## DEF
+## CLASS
 
-    def makeParameterDict(values, *args):
-        return dict(map(lambda x: (x, values[x]), args))
-    ## DEF
+def makeParameterDict(values, *args):
+    return dict(map(lambda x: (x, values[x]), args))
+## DEF

@@ -27,6 +27,7 @@
 import os
 import csv
 from datetime import datetime
+from pprint import pprint,pformat
 
 from abstractdriver import *
 
@@ -45,6 +46,7 @@ class CsvDriver(AbstractDriver):
         self.table_outputs = { }
         self.txn_directory = None
         self.txn_outputs = { }
+        self.txn_params = { }
     ## DEF
     
     def loadConfig(self, config):
@@ -52,9 +54,11 @@ class CsvDriver(AbstractDriver):
             assert key in config, "Missing parameter '%s' in %s configuration" % (key, self.name)
         
         self.table_directory = config["table_directory"]
+        assert self.table_directory
         if not os.path.exists(self.table_directory): os.makedirs(self.table_directory)
         
-        self.table_directory = config["txn_directory"]
+        self.txn_directory = config["txn_directory"]
+        assert self.txn_directory
         if not os.path.exists(self.txn_directory): os.makedirs(self.txn_directory)
     ## DEF
     
@@ -66,12 +70,15 @@ class CsvDriver(AbstractDriver):
         self.table_outputs[table].writerows(tuples)
     ## DEF
     
-    def executeTransaction(txn, params):
+    def executeTransaction(self, txn, params):
         if not txn in self.txn_outputs:
             path = os.path.join(self.txn_directory, "%s.csv" % txn)
             self.txn_outputs[txn] = csv.writer(open(path, 'wb'), quoting=csv.QUOTE_ALL)
+            self.txn_params[txn] = params.keys()[:]
+            self.txn_outputs[txn].writerow(["Timestamp"] + self.txn_params[txn])
         ## IF
-        self.txn_outputs[txn].writerows([datetime.now()] + tuples)
+        row = [datetime.now()] + [params[k] for k in self.txn_params[txn]]
+        self.txn_outputs[txn].writerow(row)
     ## DEF
 ## CLASS
 

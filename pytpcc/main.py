@@ -132,7 +132,8 @@ if __name__ == '__main__':
     system_target = args[0]
     assert system_target, "Missing target system name"
     
-    system_config = { "directory": "/tmp",
+    system_config = { "table_directory": "/tmp/tpcc-tables",
+                      "txn_directory":   "/tmp/tpcc-txns",
                       "database": "/tmp/tpcc.db",
                       "reset":    False} # TODO
     #config_target = args[1]
@@ -150,23 +151,21 @@ if __name__ == '__main__':
     
     handle.loadConfig(system_config)
 
-
     ## Create ScaleParameters
     parameters = scaleparameters.makeWithScaleFactor(OPT_WAREHOUSES, OPT_SCALEFACTOR)
     nurand = rand.setNURand(nurand.makeForLoad())
-    
     
     ## DATA LOADER!!!
     if not OPT_NO_LOAD:
         handle.loadStart()
         loader.Loader(handle, parameters).execute()
         handle.loadFinish()
-    sys.exit(1)
     
     ## WORKLOAD DRIVER!!!
     if not OPT_NO_EXECUTE:
+        results = results.Results(handle)
         handle.executeStart()
-        results = executor.Executor(handle, parameters).execute(OPT_DURATION)
+        executor.Executor(handle, parameters).execute(results, OPT_DURATION)
         handle.executeFinish()
         print results
     ## IF
