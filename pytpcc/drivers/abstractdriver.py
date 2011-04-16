@@ -48,8 +48,9 @@ class AbstractDriver(object):
         self.config = config
         
     def formatConfig(self, config):
-        ret =  "# %s Configuration File\n" % (self.name.title())
-        ret += "# Created %s" % (datetime.now())
+        ret =  "# %sDriver Configuration File\n" % (self.name.title())
+        ret += "# Created %s\n" % (datetime.now())
+        ret += "[%s]" % self.name
         
         for name, desc, default in config:
             if default == None: default = ""

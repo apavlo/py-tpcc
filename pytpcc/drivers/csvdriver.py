@@ -49,6 +49,10 @@ class CsvDriver(AbstractDriver):
         self.txn_params = { }
     ## DEF
     
+    def makeDefaultConfig(self):
+        return CsvDriver.DEFAULT_CONFIG
+    ## DEF
+    
     def loadConfig(self, config):
         for key in map(lambda x: x[0], CsvDriver.DEFAULT_CONFIG):
             assert key in config, "Missing parameter '%s' in %s configuration" % (key, self.name)

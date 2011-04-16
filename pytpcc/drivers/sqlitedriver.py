@@ -1,9 +1,13 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # -----------------------------------------------------------------------
 # Copyright (C) 2011
 # Andy Pavlo
 # http://www.cs.brown.edu/~pavlo/
+#
+# Original Java Version:
+# Copyright (C) 2008
+# Evan Jones
+# Massachusetts Institute of Technology
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files (the

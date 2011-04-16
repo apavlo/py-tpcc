@@ -35,9 +35,9 @@ import string
 import datetime
 import logging
 import re
-import getopt
-import json
-import csv
+import argparse
+import glob
+from ConfigParser import SafeConfigParser
 from pprint import pprint,pformat
 
 from util import *
@@ -49,19 +49,10 @@ logging.basicConfig(level = logging.INFO,
                     datefmt="%m-%d-%Y %H:%M:%S",
                     stream = sys.stdout)
                     
-OPT_DEBUG        = False
-OPT_WAREHOUSES   = 10
-OPT_SCALEFACTOR  = 1
-OPT_DURATION     = 60
-OPT_NO_LOAD      = False
-OPT_NO_EXECUTE   = False
-OPT_PRINT_CONFIG = False
-OPT_DDL          = os.path.realpath(os.path.join(os.path.dirname(__file__), "tpcc.sql"))
-
 ## ==============================================
-## create_handle
+## createDriverHandle
 ## ==============================================
-def create_handle(name, ddl):
+def createDriverHandle(name, ddl):
     full_name = "%sDriver" % name.title()
     mod = __import__('drivers.%s' % full_name.lower(), globals(), locals(), [full_name])
     klass = getattr(mod, full_name)
@@ -69,103 +60,81 @@ def create_handle(name, ddl):
 ## DEF
 
 ## ==============================================
-## executeDriver
+## getDrivers
 ## ==============================================
-def executeDriver(handle, duration, parameters):
-    results = Results(handle)
-    results.start()
-    
-    ## TODO: Do something!
-    
-    results.stop()
-    return (results)
+def getDrivers():
+    drivers = [ ]
+    for f in map(lambda x: os.path.basename(x).replace("driver.py", ""), glob.glob("./drivers/*driver.py")):
+        if f != "abstract": drivers.append(f)
+    return (drivers)
+## DEF
 
 ## ==============================================
 ## main
 ## ==============================================
 if __name__ == '__main__':
-    _options, args = getopt.gnu_getopt(sys.argv[1:], '', [
-        ## Scale Factor
-        "scalefactor=",
-        ## Number of Warehouses
-        "warehouses=",
-        ## How long to run the benchmark
-        "duration=",
-        ## Disable loading the data
-        "no-load",
-        ## Disable executing the workload
-        "no-execute",
-        ## Print out the default configuration file for the system and exit
-        "print-config",
-        ## Enable debug logging
-        "debug",
-    ])
-    ## ----------------------------------------------
-    ## COMMAND OPTIONS
-    ## ----------------------------------------------
-    options = { }
-    for key, value in _options:
-       if key.startswith("--"): key = key[2:]
-       if key in options:
-          options[key].append(value)
-       else:
-          options[key] = [ value ]
-    ## FOR
-    ## Global Options
-    for key in options:
-        varname = "OPT_" + key.replace("-", "_").upper()
-        if varname in globals() and len(options[key]) == 1:
-            orig_val = globals()[varname]
-            orig_type = type(orig_val) if orig_val != None else str
-            if orig_type == bool:
-                if not len(options[key][0]): options[key][0] = "true"
-                val = (options[key][0].lower() == "true")
-            else: 
-                val = orig_type(options[key][0])
-            globals()[varname] = val
-            logging.debug("%s = %s" % (varname, str(globals()[varname])))
-    ## FOR
-    if OPT_DEBUG: 
-        logging.getLogger().setLevel(logging.DEBUG)
-    
-    ## Create a handle to the client driver
-    system_target = args[0]
-    assert system_target, "Missing target system name"
-    
-    system_config = { "table_directory": "/tmp/tpcc-tables",
-                      "txn_directory":   "/tmp/tpcc-txns",
-                      "database": "/tmp/tpcc.db",
-                      "reset":    False} # TODO
-    #config_target = args[1]
-    #assert config_target, "Missing target system configuration path"
-    #with open(config_target, "r") as f:
-        #json_config = json.load(f)
+    aparser = argparse.ArgumentParser(description='Python implementation of the TPC-C Benchmark')
+    aparser.add_argument('system', choices=getDrivers(),
+                         help='Target system driver')
+    aparser.add_argument('--config', type=file,
+                         help='Path to driver configuration file')
+    aparser.add_argument('--scalefactor', default=1, type=float, metavar='SF',
+                         help='Benchmark scale factor')
+    aparser.add_argument('--warehouses', default=4, type=int, metavar='W',
+                         help='Number of Warehouses')
+    aparser.add_argument('--duration', default=60, type=int, metavar='D',
+                         help='How long to run the benchmark in seconds')
+    aparser.add_argument('--ddl', type=file, default=os.path.realpath(os.path.join(os.path.dirname(__file__), "tpcc.sql")),
+                         help='Path to the TPC-C DDL SQL file')
+    aparser.add_argument('--no-load', action='store_true',
+                         help='Disable loading the data')
+    aparser.add_argument('--no-execute', action='store_true',
+                         help='Disable executing the workload')
+    aparser.add_argument('--print-config', action='store_true',
+                         help='Print out the default configuration file for the system and exit')
+    aparser.add_argument('--debug', action='store_true',
+                         help='Enable debug log messages')
+    args = vars(aparser.parse_args())
 
-    ## Create the handle we'll need to use
-    handle = create_handle(system_target, OPT_DDL)
-    assert handle != None, "Failed to create '%s' handle" % system_target
-    if OPT_PRINT_CONFIG:
+    if args['debug']: logging.getLogger().setLevel(logging.DEBUG)
+        
+    ## Create a handle to the client driver
+    handle = createDriverHandle(args['system'], args['ddl'])
+    assert handle != None, "Failed to create '%s' handle" % args['system']
+    if args['print_config']:
         config = handle.makeDefaultConfig()
         print handle.formatConfig(config)
+        print
         sys.exit(0)
-    
-    handle.loadConfig(system_config)
+
+    ## Load Configuration file
+    if not (args['config'] and os.path.exists(args['config'])):
+        print "ERROR: Missing '%s' configuration file" % args['system']
+        aparser.print_help()
+        sys.exit(1)
+
+    cparser = SafeConfigParser()
+    cparser.read(args['config'])
+    config = dict(cparser.items(args['system']))
+    pprint(config)
+    handle.loadConfig(config)
+    sys.exit(1)
 
     ## Create ScaleParameters
-    parameters = scaleparameters.makeWithScaleFactor(OPT_WAREHOUSES, OPT_SCALEFACTOR)
+    parameters = scaleparameters.makeWithScaleFactor(args['warehouses'], args['scalefactor'])
     nurand = rand.setNURand(nurand.makeForLoad())
     
     ## DATA LOADER!!!
-    if not OPT_NO_LOAD:
+    if not args['no-load']:
         handle.loadStart()
         loader.Loader(handle, parameters).execute()
         handle.loadFinish()
     
     ## WORKLOAD DRIVER!!!
-    if not OPT_NO_EXECUTE:
+    if not args['no-execute']:
         results = results.Results(handle)
         handle.executeStart()
-        executor.Executor(handle, parameters).execute(results, OPT_DURATION)
+        executor.Executor(handle, parameters).execute(results, args['duration'])
         handle.executeFinish()
         print results
     ## IF
