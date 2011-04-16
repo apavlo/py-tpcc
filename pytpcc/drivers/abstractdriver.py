@@ -36,6 +36,9 @@ class AbstractDriver(object):
         self.name = name
         self.ddl = ddl
         self.config = None
+        
+    def __str__(self):
+        return self.name
     
     def makeDefaultConfig(self):
         """This function needs to be implemented by all sub-classes.

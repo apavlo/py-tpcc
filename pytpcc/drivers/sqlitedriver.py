@@ -67,7 +67,7 @@ TXN_QUERIES = {
         "getCustomerByCustomerId": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_BALANCE FROM CUSTOMER WHERE C_W_ID = ? AND C_D_ID = ? AND C_ID = ?", # w_id, d_id, c_id
         "getCustomersByLastName": "SELECT C_ID, C_FIRST, C_MIDDLE, C_LAST, C_BALANCE FROM CUSTOMER WHERE C_W_ID = ? AND C_D_ID = ? AND C_LAST = ? ORDER BY C_FIRST", # w_id, d_id, c_last
         "getLastOrder": "SELECT O_ID, O_CARRIER_ID, O_ENTRY_D FROM ORDERS WHERE O_W_ID = ? AND O_D_ID = ? AND O_C_ID = ? ORDER BY O_ID DESC LIMIT 1", # w_id, d_id, c_id
-        "getOrderLines": "SELECT OL_SUPPLY_W_ID, OL_I_ID, OL_QUANTITY, OL_AMOUNT, OL_DELIVERY_D FROM ORDER_LINE WHERE OL_W_ID = ? AND OL_O_ID = ? AND OL_D_ID = ?", # w_id, d_id, o_id        
+        "getOrderLines": "SELECT OL_SUPPLY_W_ID, OL_I_ID, OL_QUANTITY, OL_AMOUNT, OL_DELIVERY_D FROM ORDER_LINE WHERE OL_W_ID = ? AND OL_D_ID = ? AND OL_O_ID = ?", # w_id, d_id, o_id        
     },
     
     "PAYMENT": {
@@ -372,11 +372,11 @@ class SqliteDriver(AbstractDriver):
 
         self.cursor.execute(q["getLastOrder"], [w_id, d_id, c_id])
         order = self.cursor.fetchone()
-        assert order, "Failed to find order [w_id=%d, d_id=%d, c_id=%d]" % (w_id, d_id, c_id)
-        o_id = order[0]
-        
-        self.cursor.execute(q["getOrderLines"], [w_id, o_id, d_id])
-        orderLines = self.cursor.fetchone()
+        if order:
+            self.cursor.execute(q["getOrderLines"], [w_id, d_id, order[0]])
+            orderLines = self.cursor.fetchone()
+        else:
+            orderLines = [ ]
 
         self.conn.commit()
         return [ customer, order, orderLines ]
