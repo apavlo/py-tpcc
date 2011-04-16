@@ -84,7 +84,7 @@ if __name__ == '__main__':
                          help='Number of Warehouses')
     aparser.add_argument('--duration', default=60, type=int, metavar='D',
                          help='How long to run the benchmark in seconds')
-    aparser.add_argument('--ddl', type=file, default=os.path.realpath(os.path.join(os.path.dirname(__file__), "tpcc.sql")),
+    aparser.add_argument('--ddl', default=os.path.realpath(os.path.join(os.path.dirname(__file__), "tpcc.sql")),
                          help='Path to the TPC-C DDL SQL file')
     aparser.add_argument('--no-load', action='store_true',
                          help='Disable loading the data')
@@ -108,30 +108,29 @@ if __name__ == '__main__':
         sys.exit(0)
 
     ## Load Configuration file
-    if not (args['config'] and os.path.exists(args['config'])):
-        print "ERROR: Missing '%s' configuration file" % args['system']
-        aparser.print_help()
-        sys.exit(1)
-
-    cparser = SafeConfigParser()
-    cparser.read(args['config'])
-    config = dict(cparser.items(args['system']))
-    pprint(config)
+    if args['config']:
+        logging.debug("Loading configuration file '%s'" % args['config'])
+        cparser = SafeConfigParser()
+        cparser.read(args['config'])
+        config = dict(cparser.items(args['system']))
+    else:
+        logging.debug("Using default configuration for %s" % args['system'])
+        config = dict(map(lambda x: (x[0], x[2]), handle.makeDefaultConfig()))
     handle.loadConfig(config)
-    sys.exit(1)
 
     ## Create ScaleParameters
     parameters = scaleparameters.makeWithScaleFactor(args['warehouses'], args['scalefactor'])
     nurand = rand.setNURand(nurand.makeForLoad())
+    if args['debug']: logging.debug("Scale Parameters:\n%s" % parameters)
     
     ## DATA LOADER!!!
-    if not args['no-load']:
+    if not args['no_load']:
         handle.loadStart()
         loader.Loader(handle, parameters).execute()
         handle.loadFinish()
     
     ## WORKLOAD DRIVER!!!
-    if not args['no-execute']:
+    if not args['no_execute']:
         results = results.Results(handle)
         handle.executeStart()
         executor.Executor(handle, parameters).execute(results, args['duration'])

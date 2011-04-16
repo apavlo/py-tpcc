@@ -31,6 +31,7 @@
 
 import logging
 from datetime import datetime
+from pprint import pprint,pformat
 
 import constants
 from util import *
@@ -46,11 +47,14 @@ class Executor:
         assert results
         logging.info("Executing benchmark for %d seconds" % duration)
         start = results.startBenchmark()
+        
+        debug = logging.getLogger().isEnabledFor(logging.DEBUG)
 
         while (datetime.now() - start).seconds <= duration:
             txn, params = self.doOne()
-            logging.info("Executing '%s' transaction" % txn)
-            self.handle.executeTransaction(txn, params)
+            if debug: logging.debug("Executing '%s' transaction" % txn)
+            r = self.handle.executeTransaction(txn, params)
+            if debug: logging.debug("%s\nParameters:\n%s\nResult:\n%s" % (txn, pformat(params), pformat(r)))
             results.completedTransaction(txn)
         ## WHILE
             
@@ -60,6 +64,8 @@ class Executor:
     
     def doOne(self):
         """Selects and executes a transaction at random. The number of new order transactions executed per minute is the official "tpmC" metric. See TPC-C 5.4.2 (page 71)."""
+        
+        return (constants.TransactionTypes.PAYMENT, self.doPayment())
         
         ## This is not strictly accurate: The requirement is for certain
         ## *minimum* percentages to be maintained. This is close to the right
@@ -137,7 +143,7 @@ class Executor:
         ## 15%: paying through another warehouse:
         else:
             ## select in range [1, num_warehouses] excluding w_id
-            c_w_id = rand.numberExcluding(self.params.starting_warehouse, self.params.max_w_id, w_id)
+            c_w_id = rand.numberExcluding(self.params.starting_warehouse, self.params.ending_warehouse, w_id)
             assert c_w_id != w_id
             c_d_id = self.makeDistrictId()
 
@@ -175,7 +181,7 @@ class Executor:
             ## 1% of items are from a remote warehouse
             remote = (rand.number(1, 100) == 1)
             if self.params.warehouses > 1 and remote:
-                i_w_ids.append(rand.numberExcluding(self.params.starting_warehouse, self.params.max_w_id, w_id))
+                i_w_ids.append(rand.numberExcluding(self.params.starting_warehouse, self.params.ending_warehouse, w_id))
             else:
                 i_w_ids.append(w_id)
 
@@ -187,9 +193,9 @@ class Executor:
 
 
     def makeWarehouseId(self):
-        w_id = rand.number(self.params.starting_warehouse, self.params.max_w_id)
+        w_id = rand.number(self.params.starting_warehouse, self.params.ending_warehouse)
         assert(w_id >= self.params.starting_warehouse), "Invalid W_ID: %d" % w_id
-        assert(w_id <= self.params.max_w_id), "Invalid W_ID: %d" % w_id
+        assert(w_id <= self.params.ending_warehouse), "Invalid W_ID: %d" % w_id
         return w_id
     ## DEF
 

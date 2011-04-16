@@ -45,9 +45,9 @@ def makeWithScaleFactor(warehouses, scaleFactor):
 
     items = int(constants.NUM_ITEMS/scaleFactor)
     if items <= 0: items = 1
-    districts = max(constants.DISTRICTS_PER_WAREHOUSE, 1)
-    customers = max(constants.CUSTOMERS_PER_DISTRICT/scaleFactor, 1)
-    newOrders = max(constants.INITIAL_NEW_ORDERS_PER_DISTRICT/scaleFactor, 0)
+    districts = int(max(constants.DISTRICTS_PER_WAREHOUSE, 1))
+    customers = int(max(constants.CUSTOMERS_PER_DISTRICT/scaleFactor, 1))
+    newOrders = int(max(constants.INITIAL_NEW_ORDERS_PER_DISTRICT/scaleFactor, 0))
 
     return ScaleParameters(items, warehouses, districts, customers, newOrders)
 ## DEF
@@ -67,7 +67,7 @@ class ScaleParameters:
         assert 0 <= newOrdersPerDistrict and newOrdersPerDistrict <= constants.CUSTOMERS_PER_DISTRICT
         assert newOrdersPerDistrict <= constants.INITIAL_NEW_ORDERS_PER_DISTRICT
         self.newOrdersPerDistrict = newOrdersPerDistrict
-        self.max_w_id = (self.warehouses + self.starting_warehouse - 1)
+        self.ending_warehouse = (self.warehouses + self.starting_warehouse - 1)
     ## DEF
 
     def __str__(self):

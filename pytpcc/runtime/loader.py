@@ -55,7 +55,7 @@ class Loader:
         self.loadItems()
             
         ## Then create the warehouse-specific tuples
-        for w_id in range(self.params.starting_warehouse, self.params.max_w_id+1):
+        for w_id in range(self.params.starting_warehouse, self.params.ending_warehouse+1):
             self.loadWarehouse(w_id)
         ## FOR
         
@@ -173,7 +173,7 @@ class Loader:
         i_name = rand.astring(constants.MIN_I_NAME, constants.MAX_I_NAME)
         i_price = rand.fixedPoint(constants.MONEY_DECIMALS, constants.MIN_PRICE, constants.MAX_PRICE)
         i_data = rand.astring(constants.MIN_I_DATA, constants.MAX_I_DATA)
-        if original: i_data = fillOriginal(i_data)
+        if original: i_data = self.fillOriginal(i_data)
 
         return [i_id, i_im_id, i_name, i_price, i_data]
     ## DEF
@@ -182,19 +182,19 @@ class Loader:
     ## generateWarehouse
     ## ==============================================
     def generateWarehouse(self, w_id):
-        w_tax = generateTax()
+        w_tax = self.generateTax()
         w_ytd = constants.INITIAL_W_YTD
-        w_address = generateAddress()
-        return [w_id, w_tax, w_ytd] + w_address
+        w_address = self.generateAddress()
+        return [w_id] + w_address + [w_tax, w_ytd]
     ## DEF
 
     ## ==============================================
     ## generateDistrict
     ## ==============================================
     def generateDistrict(self, d_w_id, d_id, d_next_o_id):
-        d_tax = generateTax()
+        d_tax = self.generateTax()
         d_ytd = constants.INITIAL_D_YTD
-        d_address = generateAddress()
+        d_address = self.generateAddress()
         return [d_id, d_w_id] + d_address + [d_tax, d_ytd, d_next_o_id]
     ## DEF
 
@@ -226,7 +226,7 @@ class Loader:
         c_street2 = rand.astring(constants.MIN_STREET, constants.MAX_STREET)
         c_city = rand.astring(constants.MIN_CITY, constants.MAX_CITY)
         c_state = rand.astring(constants.STATE, constants.STATE)
-        c_zip = generateZip()
+        c_zip = self.generateZip()
 
         return [ c_id, c_d_id, c_w_id, c_first, c_middle, c_last, \
                 c_street1, c_street2, c_city, c_state, c_zip, \
@@ -274,15 +274,15 @@ class Loader:
         s_remote_cnt = 0;
 
         s_data = rand.astring(constants.MIN_I_DATA, constants.MAX_I_DATA);
-        if original: fillOriginal(s_data)
+        if original: self.fillOriginal(s_data)
 
         s_dists = [ ]
         for i in range(0, constants.DISTRICTS_PER_WAREHOUSE):
             s_dists.append(rand.astring(constants.DIST, constants.DIST))
         
         return [ s_i_id, s_w_id, s_quantity ] + \
-            s_dists + \
-            [ s_ytd, s_order_cnt, s_remote_cnt, s_data ]
+               s_dists + \
+               [ s_ytd, s_order_cnt, s_remote_cnt, s_data ]
     ## DEF
 
     ## ==============================================
@@ -306,7 +306,7 @@ class Loader:
             Used by both generateWarehouse and generateDistrict.
         """
         name = rand.astring(constants.MIN_NAME, constants.MAX_NAME)
-        return [ name ] + generateStreetAddress()
+        return [ name ] + self.generateStreetAddress()
     ## DEF
 
     ## ==============================================
@@ -321,7 +321,7 @@ class Loader:
         street2 = rand.astring(constants.MIN_STREET, constants.MAX_STREET)
         city = rand.astring(constants.MIN_CITY, constants.MAX_CITY)
         state = rand.astring(constants.STATE, constants.STATE)
-        zip = generateZip()
+        zip = self.generateZip()
 
         return [ street1, street2, city, state, zip ]
     ## DEF
