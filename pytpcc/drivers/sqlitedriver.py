@@ -103,24 +103,21 @@ TXN_QUERIES = {
 ## SqliteDriver
 ## ==============================================
 class SqliteDriver(AbstractDriver):
-    DEFAULT_CONFIG = [
-        ( "database", "The path to the SQLite database", "/tmp/tpcc.db" ),
-        ( "reset", "Reset the database", False )
-    ]
+    DEFAULT_CONFIG = {
+        "database": ("The path to the SQLite database", "/tmp/tpcc.db" ),
+    }
     
     def __init__(self, ddl):
         super(SqliteDriver, self).__init__("sqlite", ddl)
         self.database = None
         self.conn = None
         self.cursor = None
-    ## DEF
     
     ## ----------------------------------------------
     ## makeDefaultConfig
     ## ----------------------------------------------
     def makeDefaultConfig(self):
         return SqliteDriver.DEFAULT_CONFIG
-    ## DEF
     
     ## ----------------------------------------------
     ## loadConfig
@@ -145,21 +142,19 @@ class SqliteDriver(AbstractDriver):
             
         self.conn = sqlite3.connect(self.database)
         self.cursor = self.conn.cursor()
-    ## DEF
     
     ## ----------------------------------------------
     ## loadTuples
     ## ----------------------------------------------
-    def loadTuples(self, table, tuples):
+    def loadTuples(self, tableName, tuples):
         if len(tuples) == 0: return
         
         p = ["?"]*len(tuples[0])
-        sql = "INSERT INTO %s VALUES (%s)" % (table, ",".join(p))
+        sql = "INSERT INTO %s VALUES (%s)" % (tableName, ",".join(p))
         self.cursor.executemany(sql, tuples)
         
-        logging.debug("Loaded %d tuples for table %s" % (len(tuples), table))
+        logging.debug("Loaded %d tuples for tableName %s" % (len(tuples), tableName))
         return
-    ## DEF
 
     ## ----------------------------------------------
     ## loadFinish
@@ -167,7 +162,6 @@ class SqliteDriver(AbstractDriver):
     def loadFinish(self):
         logging.info("Commiting changes to database")
         self.conn.commit()
-    ## DEF
 
     ## ----------------------------------------------
     ## doDelivery
@@ -213,7 +207,6 @@ class SqliteDriver(AbstractDriver):
 
         self.conn.commit()
         return result
-    ## DEF
 
     ## ----------------------------------------------
     ## doNewOrder
@@ -471,8 +464,5 @@ class SqliteDriver(AbstractDriver):
         self.conn.commit()
         
         return int(result[0])
-    ## DEF
         
 ## CLASS
-
-        

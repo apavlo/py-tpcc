@@ -34,46 +34,49 @@ import constants
 class AbstractDriver(object):
     def __init__(self, name, ddl):
         self.name = name
+        self.driver_name = "%sDriver" % self.name.title()
         self.ddl = ddl
-        self.config = None
         
     def __str__(self):
-        return self.name
+        return self.driver_name
     
     def makeDefaultConfig(self):
         """This function needs to be implemented by all sub-classes.
         It should return the items that need to be in your implementation's configuration file.
         Each item in the list is a triplet containing: ( <PARAMETER NAME>, <DESCRIPTION>, <DEFAULT VALUE> )
         """
-        raise NotImplementedError("%s does not implement makeDefaultConfig" % (self.name))
+        raise NotImplementedError("%s does not implement makeDefaultConfig" % (self.driver_name))
     
     def loadConfig(self, config):
-        self.config = config
+        """Initialize the driver using the given configuration dict"""
+        raise NotImplementedError("%s does not implement loadConfig" % (self.driver_name))
         
     def formatConfig(self, config):
-        ret =  "# %sDriver Configuration File\n" % (self.name.title())
+        """Return a formatted version of the config dict that can be used with the --config command line argument"""
+        ret =  "# %s Configuration File\n" % (self.driver_name)
         ret += "# Created %s\n" % (datetime.now())
         ret += "[%s]" % self.name
         
-        for name, desc, default in config:
+        for name in config.keys():
+            desc, default = config[name]
             if default == None: default = ""
             ret += "\n\n# %s\n%-20s = %s" % (desc, name, default) 
         return (ret)
         
     def loadStart(self):
-        """Callback before the loading phase starts"""
+        """Optional callback to indicate to the driver that the data loading phase is about to begin."""
         return None
         
     def loadFinish(self):
-        """Callback after the loading phase finishes"""
+        """Optional callback to indicate to the driver that the data loading phase is finished."""
         return None
         
-    def loadTuples(self, table, tuples):
+    def loadTuples(self, tableName, tuples):
         """Load a list of tuples into the target table"""
-        raise NotImplementedError("%s does not loadTuples" % (self.name))
+        raise NotImplementedError("%s does not implement loadTuples" % (self.driver_name))
         
     def executeStart(self):
-        """Callback before the execution phase starts"""
+        """Optional callback before the execution phase starts"""
         return None
         
     def executeFinish(self):
@@ -104,7 +107,7 @@ class AbstractDriver(object):
             o_carrier_id
             ol_delivery_d
         """
-        raise NotImplementedError("%s does not implement DELIVERY" % (self.name))
+        raise NotImplementedError("%s does not implement doDelivery" % (self.driver_name))
     
     def doNewOrder(self, params):
         """Execute NEW_ORDER Transaction
@@ -117,7 +120,7 @@ class AbstractDriver(object):
             i_w_ids
             i_qtys
         """
-        raise NotImplementedError("%s does not implement NEW_ORDER" % (self.name))
+        raise NotImplementedError("%s does not implement doNewOrder" % (self.driver_name))
 
     def doOrderStatus(self, params):
         """Execute ORDER_STATUS Transaction
@@ -127,8 +130,7 @@ class AbstractDriver(object):
             c_id
             c_last
         """
-        raise NotImplementedError("%s does not implement ORDER_STATUS" % (self.name))
-
+        raise NotImplementedError("%s does not implement doOrderStatus" % (self.driver_name))
 
     def doPayment(self, params):
         """Execute PAYMENT Transaction
@@ -142,8 +144,7 @@ class AbstractDriver(object):
             c_last
             h_date
         """
-        raise NotImplementedError("%s does not implement PAYMENT" % (self.name))
-
+        raise NotImplementedError("%s does not implement doPayment" % (self.driver_name))
 
     def doStockLevel(self, params):
         """Execute STOCK_LEVEL Transaction
@@ -152,5 +153,5 @@ class AbstractDriver(object):
             d_id
             threshold
         """
-        raise NotImplementedError("%s does not implement STOCK_LEVEL" % (self.name))
+        raise NotImplementedError("%s does not implement doStockLevel" % (self.driver_name))
 ## CLASS

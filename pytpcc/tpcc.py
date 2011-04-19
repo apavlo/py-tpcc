@@ -78,6 +78,8 @@ if __name__ == '__main__':
                          help='Target system driver')
     aparser.add_argument('--config', type=file,
                          help='Path to driver configuration file')
+    aparser.add_argument('--reset', action='store_true',
+                         help='Instruct the driver to reset the contents of the database')
     aparser.add_argument('--scalefactor', default=1, type=float, metavar='SF',
                          help='Benchmark scale factor')
     aparser.add_argument('--warehouses', default=4, type=int, metavar='W',
@@ -116,6 +118,7 @@ if __name__ == '__main__':
     else:
         logging.debug("Using default configuration for %s" % args['system'])
         config = dict(map(lambda x: (x[0], x[2]), handle.makeDefaultConfig()))
+    config['reset'] = args['reset']
     handle.loadConfig(config)
 
     ## Create ScaleParameters

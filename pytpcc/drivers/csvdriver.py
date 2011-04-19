@@ -35,10 +35,10 @@ from abstractdriver import *
 ## CSVDriver
 ## ==============================================
 class CsvDriver(AbstractDriver):
-    DEFAULT_CONFIG = [
-        ( "table_directory", "The path to the directory to store the table CSV files", "/tmp/tpcc-tables" ),
-        ( "txn_directory", "The path to the directory to store the txn CSV files", "/tmp/tpcc-txns" ),
-    ]
+    DEFAULT_CONFIG = {
+        "table_directory": ("The path to the directory to store the table CSV files", "/tmp/tpcc-tables" ),
+        "txn_directory": ("The path to the directory to store the txn CSV files", "/tmp/tpcc-txns" ),
+    }
     
     def __init__(self, ddl):
         super(CsvDriver, self).__init__("csv", ddl)
@@ -66,12 +66,12 @@ class CsvDriver(AbstractDriver):
         if not os.path.exists(self.txn_directory): os.makedirs(self.txn_directory)
     ## DEF
     
-    def loadTuples(self, table, tuples):
-        if not table in self.table_outputs:
-            path = os.path.join(self.table_directory, "%s.csv" % table)
-            self.table_outputs[table] = csv.writer(open(path, 'wb'), quoting=csv.QUOTE_ALL)
+    def loadTuples(self, tableName, tuples):
+        if not tableName in self.table_outputs:
+            path = os.path.join(self.table_directory, "%s.csv" % tableName)
+            self.table_outputs[tableName] = csv.writer(open(path, 'wb'), quoting=csv.QUOTE_ALL)
         ## IF
-        self.table_outputs[table].writerows(tuples)
+        self.table_outputs[tableName].writerows(tuples)
     ## DEF
     
     def executeTransaction(self, txn, params):
