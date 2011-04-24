@@ -123,10 +123,10 @@ class SqliteDriver(AbstractDriver):
     ## loadConfig
     ## ----------------------------------------------
     def loadConfig(self, config):
-        for key in map(lambda x: x[0], SqliteDriver.DEFAULT_CONFIG):
+        for key in SqliteDriver.DEFAULT_CONFIG.keys():
             assert key in config, "Missing parameter '%s' in %s configuration" % (key, self.name)
         
-        self.database = config["database"]
+        self.database = str(config["database"])
         
         if config["reset"] and os.path.exists(self.database):
             logging.debug("Deleting database '%s'" % self.database)

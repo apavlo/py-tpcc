@@ -113,11 +113,12 @@ if __name__ == '__main__':
     if args['config']:
         logging.debug("Loading configuration file '%s'" % args['config'])
         cparser = SafeConfigParser()
-        cparser.read(args['config'])
+        cparser.read(os.path.realpath(args['config'].name))
         config = dict(cparser.items(args['system']))
     else:
         logging.debug("Using default configuration for %s" % args['system'])
-        config = dict(map(lambda x: (x[0], x[2]), handle.makeDefaultConfig()))
+        defaultConfig = handle.makeDefaultConfig()
+        config = dict(map(lambda x: (x, defaultConfig[x][1]), defaultConfig.keys()))
     config['reset'] = args['reset']
     handle.loadConfig(config)
 
