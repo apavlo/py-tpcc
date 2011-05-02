@@ -26,7 +26,7 @@
 
 import logging
 from datetime import datetime
-
+import time
 class Results:
     
     def __init__(self, handle):
@@ -43,7 +43,7 @@ class Results:
         """Mark the benchmark as having been started"""
         assert self.start == None
         logging.debug("Starting benchmark statistics collection")
-        self.start = datetime.now()
+        self.start = time.time()
         return self.start
         
     def stopBenchmark(self):
@@ -51,12 +51,12 @@ class Results:
         assert self.start != None
         assert self.stop == None
         logging.debug("Stopping benchmark statistics collection")
-        self.stop = datetime.now()
+        self.stop = time.time()
         
     def startTransaction(self, txn):
         self.txn_id += 1
         id = self.txn_id
-        self.running[id] = (txn, datetime.now())
+        self.running[id] = (txn, time.time())
         return id
         
     def stopTransaction(self, id):
@@ -65,7 +65,7 @@ class Results:
         txn_name, txn_start = self.running[id]
         del self.running[id]
         
-        duration = (datetime.now() - txn_start).microseconds
+        duration = time.time() - txn_start
         total_time = self.txn_times.get(txn_name, 0)
         self.txn_times[txn_name] = total_time + duration
         
@@ -76,15 +76,15 @@ class Results:
         if self.start == None:
             return "Benchmark not started"
         if self.stop == None:
-            duration = (datetime.now() - self.start).seconds
+            duration = time.time() - self.start
         else:
-            duration = (self.stop - self.start).seconds
+            duration = self.stop - self.start
         
         col_width = 16
         total_width = (col_width*4)+2
         f = "\n  " + (("%-" + str(col_width) + "s")*4)
         
-        ret = u"%s Results after %d seconds\n%s" % (str(self.handle).title(), duration, "-"*total_width)
+        ret = u"%s Results after %d seconds\n%s" % (str(self.handle), duration, "-"*total_width)
         ret += f % ("", "Executed", u"Time (µs)", "Rate")
         
         total_time = 0
@@ -92,14 +92,14 @@ class Results:
         for txn in sorted(self.txn_counters.keys()):
             txn_time = self.txn_times[txn]
             txn_cnt = self.txn_counters[txn]
-            rate = u"%.02f txn/s" % ((txn_time / txn_cnt) / 1000000.0)
-            ret += f % (txn, str(txn_cnt), str(txn_time), rate)
+            rate = u"%.02f txn/s" % ((txn_cnt / txn_time))
+            ret += f % (txn, str(txn_cnt), str(txn_time * 1000000), rate)
             
             total_time += txn_time
             total_cnt += txn_cnt
         ret += "\n" + ("-"*total_width)
-        total_rate = "%.02f txn/s" % ((total_time / txn_cnt) / 1000000.0)
-        ret += f % ("TOTAL", str(total_cnt), str(total_time), total_rate)
+        total_rate = "%.02f txn/s" % ((total_cnt / total_time))
+        ret += f % ("TOTAL", str(total_cnt), str(total_time * 1000000), total_rate)
 
         return (ret.encode('utf-8'))
 ## CLASS

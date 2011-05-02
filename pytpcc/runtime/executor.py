@@ -33,7 +33,7 @@ import logging
 from datetime import datetime
 from pprint import pprint,pformat
 
-import constants
+import constants, time
 from util import *
 
 class Executor:
@@ -50,7 +50,7 @@ class Executor:
         
         debug = logging.getLogger().isEnabledFor(logging.DEBUG)
 
-        while (datetime.now() - start).seconds <= duration:
+        while (time.time() - start) <= duration:
             txn, params = self.doOne()
             txn_id = results.startTransaction(txn)
             
