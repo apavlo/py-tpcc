@@ -68,7 +68,7 @@ class Executor:
     def doOne(self):
         """Selects and executes a transaction at random. The number of new order transactions executed per minute is the official "tpmC" metric. See TPC-C 5.4.2 (page 71)."""
         
-        return (constants.TransactionTypes.DELIVERY, self.generateDeliveryParams())
+        #return (constants.TransactionTypes.DELIVERY, self.generateDeliveryParams())
         
         ## This is not strictly accurate: The requirement is for certain
         ## *minimum* percentages to be maintained. This is close to the right

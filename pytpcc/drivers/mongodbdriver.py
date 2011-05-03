@@ -33,7 +33,7 @@ from __future__ import with_statement
 
 import os
 import logging
-from pymongo import Connection
+import pymongo
 from pprint import pprint,pformat
 
 import constants
@@ -151,7 +151,43 @@ TABLE_COLUMNS = {
         "H_DATA", # VARCHAR
     ],
 }
-
+TABLE_INDEXES = {
+    constants.TABLENAME_ITEM: [
+        "I_ID",
+    ],
+    constants.TABLENAME_WAREHOUSE: [
+        "W_ID",
+    ],    
+    constants.TABLENAME_DISTRICT: [
+        "D_ID",
+        "D_W_ID",
+    ],
+    constants.TABLENAME_CUSTOMER:   [
+        "C_ID",
+        "C_D_ID",
+        "C_W_ID",
+    ],
+    constants.TABLENAME_STOCK:      [
+        "S_I_ID",
+        "S_W_ID",
+    ],
+    constants.TABLENAME_ORDERS:     [
+        "O_ID",
+        "O_D_ID",
+        "O_W_ID",
+        "O_C_ID",
+    ],
+    constants.TABLENAME_NEW_ORDER:  [
+        "NO_O_ID",
+        "NO_D_ID",
+        "NO_W_ID",
+    ],
+    constants.TABLENAME_ORDER_LINE: [
+        "OL_O_ID",
+        "OL_D_ID",
+        "OL_W_ID",
+    ],
+}
 
 ## ==============================================
 ## MongodbDriver
@@ -186,7 +222,7 @@ class MongodbDriver(AbstractDriver):
         for key in MongodbDriver.DEFAULT_CONFIG.keys():
             assert key in config, "Missing parameter '%s' in %s configuration" % (key, self.name)
         
-        self.conn = Connection(config['host'], config['port'])
+        self.conn = pymongo.Connection(config['host'], config['port'])
         self.database = self.conn[str(config['name'])]
         
         if config["reset"]:
@@ -197,9 +233,15 @@ class MongodbDriver(AbstractDriver):
                     logging.debug("Dropped collection %s" % name)
         ## IF
         
-        ## Create member mapping to collections
+        ## Setup!
         for name in constants.ALL_TABLES:
+            ## Create member mapping to collections
             self.__dict__[name.lower()] = self.database[name]
+            
+            ## Create Indexes
+            if name in TABLE_INDEXES:
+                self.database[name].ensure_index(map(lambda x: (x, pymongo.ASCENDING), TABLE_INDEXES[name]))
+        ## FOR
     
     ## ----------------------------------------------
     ## loadTuples
@@ -306,10 +348,10 @@ class MongodbDriver(AbstractDriver):
         ## http://stackoverflow.com/q/3844931/
         all_local = (not i_w_ids or [w_id] * len(i_w_ids) == i_w_ids)
         
-        items = self.item.find({"I_ID": {"$in": i_ids}}, {"I_PRICE": 1, "I_NAME": 1, "I_DATA": 1})
+        items = self.item.find({"I_ID": {"$in": i_ids}}, {"I_ID": 1, "I_PRICE": 1, "I_NAME": 1, "I_DATA": 1})
         ## TPCC defines 1% of neworder gives a wrong itemid, causing rollback.
         ## Note that this will happen with 1% of transactions on purpose.
-        if len(items) != len(i_ids):
+        if items.count() != len(i_ids):
             ## TODO Abort here!
             return
         ## IF
@@ -355,10 +397,14 @@ class MongodbDriver(AbstractDriver):
         ## If all of the items are at the same warehouse, then we'll issue a single
         ## request to get their information
         ## ----------------
-        if all_local:
+        stockInfos = None
+        if all_local and False:
             # getStockInfo
-            stockInfos = self.stock.find({"S_I_ID": {"$in": i_ids}, "S_W_ID": w_id}, {"S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1})
-            assert len(stockInfos) == ol_cnt
+            allStocks = self.stock.find({"S_I_ID": {"$in": i_ids}, "S_W_ID": w_id}, {"S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1})
+            assert allStocks.count() == ol_cnt
+            stockInfos = { }
+            for si in allStocks:
+                stockInfos["S_I_ID"] = si # HACK
         ## IF
 
         ## ----------------
@@ -378,12 +424,12 @@ class MongodbDriver(AbstractDriver):
             i_price = itemInfo["I_PRICE"]
 
             # getStockInfo
-            if all_local:
-                si = stockInfos[i]
-                assert si["S_I_ID"] == ol_i_id
+            if all_local and stockInfos != None:
+                si = stockInfos[ol_i_id]
+                assert si["S_I_ID"] == ol_i_id, "S_I_ID should be %d\n%s" % (ol_i_id, pformat(si))
             else:
-                si = self.stock.find_one({"S_I_ID": ol_id_id, "S_W_ID": w_id}, {"S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1})
-            assert si
+                si = self.stock.find_one({"S_I_ID": ol_i_id, "S_W_ID": w_id}, {"S_I_ID": 1, "S_QUANTITY": 1, "S_DATA": 1, "S_YTD": 1, "S_ORDER_CNT": 1, "S_REMOTE_CNT": 1, s_dist_col: 1})
+            assert si, "Failed to find S_I_ID: %d\n%s" % (ol_i_id, pformat(itemInfo))
 
             s_quantity = si["S_QUANTITY"]
             s_ytd = si["S_YTD"]
@@ -429,7 +475,7 @@ class MongodbDriver(AbstractDriver):
         ## Pack up values the client is missing (see TPC-C 2.4.3.5)
         misc = [ (w_tax, d_tax, d_next_o_id, total) ]
         
-        return [ customer_info, misc, item_data ]
+        return [ c, misc, item_data ]
 
     ## ----------------------------------------------
     ## doOrderStatus
@@ -445,21 +491,21 @@ class MongodbDriver(AbstractDriver):
 
         if c_id != None:
             # getCustomerByCustomerId
-            customer = self.customer.find_one({"C_W_ID": w_id, "C_D_ID": d_id, "C_ID": c_id}, {"C_ID": 1, "C_FIRST": 1, "C_MIDDLE": 1, "C_LAST": 1, "C_BALANCE": 1})
+            c = self.customer.find_one({"C_W_ID": w_id, "C_D_ID": d_id, "C_ID": c_id}, {"C_ID": 1, "C_FIRST": 1, "C_MIDDLE": 1, "C_LAST": 1, "C_BALANCE": 1})
         else:
             # getCustomersByLastName
             # Get the midpoint customer's id
             all_customers = self.customer.find({"C_W_ID": w_id, "C_D_ID": d_id, "C_LAST": c_last}, {"C_ID": 1, "C_FIRST": 1, "C_MIDDLE": 1, "C_LAST": 1, "C_BALANCE": 1})
-            assert len(all_customers) > 0
-            namecnt = len(all_customers)
+            namecnt = all_customers.count()
+            assert namecnt > 0
             index = (namecnt-1)/2
-            customer = all_customers[index]
-            c_id = customer["C_ID"]
-        assert len(customer) > 0
+            c = all_customers[index]
+            c_id = c["C_ID"]
+        assert len(c) > 0
         assert c_id != None
 
         # getLastOrder
-        order = self.orders.find_one({"O_W_ID": w_id, "O_D_ID": d_id, "O_C_ID": c_id}, {"O_ID": 1, "O_CARRIER_ID": 1, "O_ENTRY_D": 1}).sort({"O_ID": 1}).limit(1)
+        order = self.orders.find({"O_W_ID": w_id, "O_D_ID": d_id, "O_C_ID": c_id}, {"O_ID": 1, "O_CARRIER_ID": 1, "O_ENTRY_D": 1}).sort("O_ID", direction=pymongo.DESCENDING).limit(1)[0]
         o_id = order["O_ID"]
 
         if order:
@@ -468,7 +514,7 @@ class MongodbDriver(AbstractDriver):
         else:
             orderLines = [ ]
 
-        return [ customer, order, orderLines ]
+        return [ c, order, orderLines ]
 
     ## ----------------------------------------------
     ## doPayment
@@ -490,8 +536,8 @@ class MongodbDriver(AbstractDriver):
             # getCustomersByLastName
             # Get the midpoint customer's id
             all_customers = self.customer.find({"C_W_ID": w_id, "C_D_ID": d_id, "C_LAST": c_last})
-            assert len(all_customers) > 0
-            namecnt = len(all_customers)
+            namecnt = all_customers.count()
+            assert namecnt > 0
             index = (namecnt-1)/2
             c = all_customers[index]
             c_id = c["C_ID"]
@@ -517,7 +563,7 @@ class MongodbDriver(AbstractDriver):
         self.district.update(d, {"$inc": {"D_YTD": h_amount}})
         
         # Customer Credit Information
-        if customer["C_CREDIT"] == constants.BAD_CREDIT:
+        if c["C_CREDIT"] == constants.BAD_CREDIT:
             newData = " ".join(map(str, [c_id, c_d_id, c_w_id, d_id, w_id, h_amount]))
             c_data = (newData + "|" + c_data)
             if len(c_data) > constants.MAX_C_DATA: c_data = c_data[:constants.MAX_C_DATA]
@@ -530,7 +576,7 @@ class MongodbDriver(AbstractDriver):
             self.customer.update(c, {"$set": {"C_BALANCE": c_balance, "C_YTD_PAYMENT": c_ytd_payment, "C_PAYMENT_CNT": c_payment_cnt}})
 
         # Concatenate w_name, four spaces, d_name
-        h_data = "%s    %s" % (w["W_NAME"], district["D_NAME"])
+        h_data = "%s    %s" % (w["W_NAME"], d["D_NAME"])
         
         # insertHistory
         self.history.insert({"H_C_ID": c_id, "H_C_D_ID": c_d_id, "H_C_W_ID": c_w_id, "H_D_ID": d_id, "H_W_ID": w_id, "H_DATE": h_date, "H_AMOUNT": h_amount, "H_DATA": h_data})
@@ -567,8 +613,8 @@ class MongodbDriver(AbstractDriver):
         for ol in orderLines:
             ol_ids.add(ol["OL_I_ID"])
         ## FOR
-        result = self.stock.find({"S_W_ID": w_id, "S_I_ID": {"$in": ol_ids}, "S_QUANTITY": {"$lt": threshold}}).count()
+        result = self.stock.find({"S_W_ID": w_id, "S_I_ID": {"$in": list(ol_ids)}, "S_QUANTITY": {"$lt": threshold}}).count()
         
-        return int(result[0])
+        return int(result)
         
 ## CLASS
