@@ -240,7 +240,7 @@ class MongodbDriver(AbstractDriver):
             
             ## Create Indexes
             if name in TABLE_INDEXES:
-                self.database[name].ensure_index(map(lambda x: (x, pymongo.ASCENDING), TABLE_INDEXES[name]))
+                self.database[name].create_index(map(lambda x: (x, pymongo.ASCENDING), TABLE_INDEXES[name]))
         ## FOR
     
     ## ----------------------------------------------
