@@ -57,6 +57,7 @@ class Loader:
         ## Then create the warehouse-specific tuples
         for w_id in range(self.params.starting_warehouse, self.params.ending_warehouse+1):
             self.loadWarehouse(w_id)
+            self.handle.loadFinishWarehouse(w_id)
         ## FOR
         
         return (None)
@@ -102,7 +103,7 @@ class Loader:
         d_tuples = [ ]
         for d_id in range(1, self.params.districtsPerWarehouse+1):
             d_next_o_id = self.params.customersPerDistrict + 1
-            d_tuples.append(self.generateDistrict(w_id, d_id, d_next_o_id))
+            d_tuples = [ self.generateDistrict(w_id, d_id, d_next_o_id) ]
             
             c_tuples = [ ]
             h_tuples = [ ]
@@ -145,13 +146,14 @@ class Loader:
                 if newOrder: no_tuples.append([o_id, d_id, w_id])
             ## FOR
             
+            self.handle.loadTuples(constants.TABLENAME_DISTRICT, d_tuples)
             self.handle.loadTuples(constants.TABLENAME_CUSTOMER, c_tuples)
             self.handle.loadTuples(constants.TABLENAME_ORDERS, o_tuples)
             self.handle.loadTuples(constants.TABLENAME_ORDER_LINE, ol_tuples)
             self.handle.loadTuples(constants.TABLENAME_NEW_ORDER, no_tuples)
             self.handle.loadTuples(constants.TABLENAME_HISTORY, h_tuples)
+            self.handle.loadFinishDistrict(w_id, d_id)
         ## FOR
-        self.handle.loadTuples(constants.TABLENAME_DISTRICT, d_tuples)
         
         ## Select 10% of the stock to be marked "original"
         s_tuples = [ ]
@@ -242,7 +244,7 @@ class Loader:
         o_entry_d = datetime.now()
         o_carrier_id = constants.NULL_CARRIER_ID if newOrder else rand.number(constants.MIN_CARRIER_ID, constants.MAX_CARRIER_ID)
         o_all_local = constants.INITIAL_ALL_LOCAL
-        return [ o_id, o_d_id, o_w_id, o_c_id, o_entry_d, o_carrier_id, o_ol_cnt, o_all_local ]
+        return [ o_id, o_c_id, o_d_id, o_w_id, o_entry_d, o_carrier_id, o_ol_cnt, o_all_local ]
     ## DEF
 
     ## ==============================================

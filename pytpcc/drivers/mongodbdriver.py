@@ -115,9 +115,9 @@ TABLE_COLUMNS = {
     ],
     constants.TABLENAME_ORDERS:     [
         "O_ID", # INTEGER
+        "O_C_ID", # INTEGER
         "O_D_ID", # TINYINT
         "O_W_ID", # SMALLINT
-        "O_C_ID", # INTEGER
         "O_ENTRY_D", # TIMESTAMP
         "O_CARRIER_ID", # INTEGER
         "O_OL_CNT", # INTEGER
@@ -194,16 +194,26 @@ TABLE_INDEXES = {
 ## ==============================================
 class MongodbDriver(AbstractDriver):
     DEFAULT_CONFIG = {
-        "host": ("The hostname to mongod", "localhost" ),
-        "port": ("The port number to mongod", 27017 ),
-        "name": ("Collection name", "tpcc"),
+        "host":         ("The hostname to mongod", "localhost" ),
+        "port":         ("The port number to mongod", 27017 ),
+        "name":         ("Collection name", "tpcc"),
+        "denormalize":  ("If set to true, then the CUSTOMER data will be denormalized into a single document", True),
     }
+    DENORMALIZED_TABLES = [
+        constants.TABLENAME_CUSTOMER,
+        constants.TABLENAME_ORDERS,
+        constants.TABLENAME_ORDER_LINE,
+        constants.TABLENAME_HISTORY,
+    ]
+    
     
     def __init__(self, ddl):
         super(MongodbDriver, self).__init__("mongodb", ddl)
         self.database = None
         self.conn = None
-        self.cursor = None
+        self.denormalize = False
+        self.w_customers = { }
+        self.w_orders = { }
         
         ## Create member mapping to collections
         for name in constants.ALL_TABLES:
@@ -224,6 +234,8 @@ class MongodbDriver(AbstractDriver):
         
         self.conn = pymongo.Connection(config['host'], config['port'])
         self.database = self.conn[str(config['name'])]
+        self.denormalize = config['denormalize']
+        if self.denormalize: logging.debug("Using denormalized data model")
         
         if config["reset"]:
             logging.info("Deleting database '%s'" % self.database.name)
@@ -235,11 +247,15 @@ class MongodbDriver(AbstractDriver):
         
         ## Setup!
         for name in constants.ALL_TABLES:
+            if self.denormalize and name in MongodbDriver.DENORMALIZED_TABLES[1:]: continue
+            
             ## Create member mapping to collections
             self.__dict__[name.lower()] = self.database[name]
             
             ## Create Indexes
-            if name in TABLE_INDEXES:
+            if name in TABLE_INDEXES and \
+               (self.denormalize or (self.denormalize == False and not name in MongodbDriver.DENORMALIZED_TABLES[1:])):
+                logging.debug("Creating index for %s" % name)
                 self.database[name].create_index(map(lambda x: (x, pymongo.ASCENDING), TABLE_INDEXES[name]))
         ## FOR
     
@@ -248,21 +264,77 @@ class MongodbDriver(AbstractDriver):
     ## ----------------------------------------------
     def loadTuples(self, tableName, tuples):
         if len(tuples) == 0: return
+        logging.debug("Loading %d tuples for tableName %s" % (len(tuples), tableName))
         
         assert tableName in TABLE_COLUMNS, "Unexpected table %s" % tableName
         columns = TABLE_COLUMNS[tableName]
-        num_columns = len(columns)
+        num_columns = range(len(columns))
         
         tuple_dicts = [ ]
-        for t in tuples:
-            tuple_dicts.append(dict(map(lambda i: (columns[i], t[i]), range(num_columns))))
-        ## FOR
         
-        table = self.database[tableName]
-        table.insert(tuple_dicts)
-        logging.debug("Loaded %d tuples for tableName %s" % (len(tuples), tableName))
+        ## We want to combine all of a CUSTOMER's ORDERS, ORDER_LINE, and HISTORY records
+        ## into a single document
+        if self.denormalize and tableName in MongodbDriver.DENORMALIZED_TABLES:
+            ## If this is the CUSTOMER table, then we'll just store the record locally for now
+            if tableName == constants.TABLENAME_CUSTOMER:
+                for t in tuples:
+                    key = tuple(t[:3]) # C_ID, D_ID, W_ID
+                    self.w_customers[key] = dict(map(lambda i: (columns[i], t[i]), num_columns))
+                ## FOR
+                
+            ## If this is an ORDER_LINE record, then we need to stick it inside of the 
+            ## right ORDERS record
+            elif tableName == constants.TABLENAME_ORDER_LINE:
+                for t in tuples:
+                    o_key = tuple(t[:3]) # O_ID, O_D_ID, O_W_ID
+                    (c_key, o_idx) = self.w_orders[o_key]
+                    c = self.w_customers[c_key]
+                    assert o_idx >= 0
+                    assert o_idx < len(c[constants.TABLENAME_ORDERS])
+                    o = c[constants.TABLENAME_ORDERS][o_idx]
+                    if not tableName in o: o[tableName] = [ ]
+                    o[tableName].append(dict(map(lambda i: (columns[i], t[i]), num_columns)))
+                ## FOR
+                    
+            ## Otherwise we have to find the CUSTOMER record for the other tables
+            ## and append ourselves to them
+            else:
+                key_start = 1 if tableName == constants.TABLENAME_ORDERS else 0
+                for t in tuples:
+                    c_key = tuple(t[key_start:key_start+3]) # C_ID, D_ID, W_ID
+                    assert c_key in self.w_customers, "Customer Key: %s\nAll Keys:\n%s" % (str(c_key), "\n".join(map(str, sorted(self.w_customers.keys()))))
+                    c = self.w_customers[c_key]
+                    if not tableName in c: c[tableName] = [ ]
+                    c[tableName].append(dict(map(lambda i: (columns[i], t[i]), num_columns)))
+
+                    ## Since ORDER_LINE doesn't have a C_ID, we have to store a reference to
+                    ## this ORDERS record so that we can look it up later
+                    if tableName == constants.TABLENAME_ORDERS:
+                        o_key = (t[0], t[2], t[3]) # O_ID, O_D_ID, O_W_ID
+                        self.w_orders[o_key] = (c_key, len(c[tableName])-1) # CUSTOMER, ORDER IDX
+                ## FOR
+            ## IF
+
+        ## Otherwise just shove the tuples straight to the target collection
+        else:
+            for t in tuples:
+                tuple_dicts.append(dict(map(lambda i: (columns[i], t[i]), num_columns)))
+            ## FOR
+            self.database[tableName].insert(tuple_dicts)
+        ## IF
         
         return
+        
+    ## ----------------------------------------------
+    ## loadFinishDistrict
+    ## ----------------------------------------------
+    def loadFinishDistrict(self, w_id, d_id):
+        if self.denormalize:
+            logging.info("Pushing %d denormalized CUSTOMER records for DISTRICT %d.%d into MongoDB" % (len(self.w_customers), d_id, w_id))
+            self.database[constants.TABLENAME_CUSTOMER].insert(self.w_customers.values())
+            self.w_customers.clear()
+            self.w_orders.clear()
+        ## IF
 
     ## ----------------------------------------------
     ## loadFinish
@@ -271,6 +343,7 @@ class MongodbDriver(AbstractDriver):
         logging.info("Finished loading tables")
         if logging.getLogger().isEnabledFor(logging.DEBUG):
             for name in constants.ALL_TABLES:
+                if self.denormalize and name in MongodbDriver.DENORMALIZED_TABLES[1:]: continue
                 logging.debug("%-12s%d records" % (name+":", self.database[name].count()))
         ## IF
 

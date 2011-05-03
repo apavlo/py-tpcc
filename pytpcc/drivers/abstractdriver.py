@@ -70,6 +70,14 @@ class AbstractDriver(object):
     def loadFinish(self):
         """Optional callback to indicate to the driver that the data loading phase is finished."""
         return None
+    
+    def loadFinishWarehouse(self, w_id):
+        """Optional callback to indicate to the driver that the data for the given warehouse is finished."""
+        return None
+        
+    def loadFinishDistrict(self, w_id, d_id):
+        """Optional callback to indicate to the driver that the data for the given district is finished."""
+        return None
         
     def loadTuples(self, tableName, tuples):
         """Load a list of tuples into the target table"""

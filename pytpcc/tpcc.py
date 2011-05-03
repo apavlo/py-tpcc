@@ -121,7 +121,7 @@ if __name__ == '__main__':
         config = dict(map(lambda x: (x, defaultConfig[x][1]), defaultConfig.keys()))
     config['reset'] = args['reset']
     handle.loadConfig(config)
-    logging.info("Executing TPC-C benchmark using %s" % handle)
+    logging.info("Initializing TPC-C benchmark using %s" % handle)
 
     ## Create ScaleParameters
     parameters = scaleparameters.makeWithScaleFactor(args['warehouses'], args['scalefactor'])
