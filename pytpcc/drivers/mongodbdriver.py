@@ -459,7 +459,7 @@ class MongodbDriver(AbstractDriver):
         assert c_id != None
 
         # getLastOrder
-        order = self.orders.find_one({"O_W_ID": w_id, "O_D_ID": d_id, "O_C_ID": c_id}, {"O_ID": 1, "O_CARRIER_ID": 1, "O_ENTRY_D": 1}).sort({"O_ID": 1}.limit(1)
+        order = self.orders.find_one({"O_W_ID": w_id, "O_D_ID": d_id, "O_C_ID": c_id}, {"O_ID": 1, "O_CARRIER_ID": 1, "O_ENTRY_D": 1}).sort({"O_ID": 1}).limit(1)
         o_id = order["O_ID"]
 
         if order:
@@ -468,15 +468,12 @@ class MongodbDriver(AbstractDriver):
         else:
             orderLines = [ ]
 
-        self.conn.commit()
         return [ customer, order, orderLines ]
 
     ## ----------------------------------------------
     ## doPayment
     ## ----------------------------------------------    
     def doPayment(self, params):
-        q = TXN_QUERIES["PAYMENT"]
-
         w_id = params["w_id"]
         d_id = params["d_id"]
         h_amount = params["h_amount"]
@@ -487,48 +484,56 @@ class MongodbDriver(AbstractDriver):
         h_date = params["h_date"]
 
         if c_id != None:
-            self.cursor.execute(q["getCustomerByCustomerId"], [w_id, d_id, c_id])
-            customer = self.cursor.fetchone()
+            # getCustomerByCustomerId
+            c = self.customer.find_one({"C_W_ID": w_id, "C_D_ID": d_id, "C_ID": c_id})
         else:
+            # getCustomersByLastName
             # Get the midpoint customer's id
-            self.cursor.execute(q["getCustomersByLastName"], [w_id, d_id, c_last])
-            all_customers = self.cursor.fetchall()
+            all_customers = self.customer.find({"C_W_ID": w_id, "C_D_ID": d_id, "C_LAST": c_last})
             assert len(all_customers) > 0
             namecnt = len(all_customers)
             index = (namecnt-1)/2
-            customer = all_customers[index]
-            c_id = customer[0]
-        assert len(customer) > 0
-        c_balance = customer[14] - h_amount
-        c_ytd_payment = customer[15] + h_amount
-        c_payment_cnt = customer[16] + 1
-        c_data = customer[17]
+            c = all_customers[index]
+            c_id = c["C_ID"]
+        assert len(c) > 0
+        assert c_id != None
+        c_balance = c["C_BALANCE"] - h_amount
+        c_ytd_payment = c["C_YTD_PAYMENT"] + h_amount
+        c_payment_cnt = c["C_PAYMENT_CNT"] + 1
+        c_data = c["C_DATA"]
 
-        self.cursor.execute(q["getWarehouse"], [w_id])
-        warehouse = self.cursor.fetchone()
+        # getWarehouse
+        w = self.warehouse.find_one({"W_ID": w_id}, {"W_NAME": 1, "W_STREET_1": 1, "W_STREET_2": 1, "W_CITY": 1, "W_STATE": 1, "W_ZIP": 1})
+        assert w
         
-        self.cursor.execute(q["getDistrict"], [w_id, d_id])
-        district = self.cursor.fetchone()
+        # getDistrict
+        d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id}, {"D_NAME": 1, "D_STREET_1": 1, "D_STREET_2": 1, "D_CITY": 1, "D_STATE": 1, "D_ZIP": 1})
+        assert d
         
-        self.cursor.execute(q["updateWarehouseBalance"], [h_amount, w_id])
-        self.cursor.execute(q["updateDistrictBalance"], [h_amount, w_id, d_id])
-
+        # updateWarehouseBalance
+        self.warehouse.update(w, {"$inc": {"H_AMOUNT": h_amount}})
+        
+        # updateDistrictBalance
+        self.district.update(d, {"$inc": {"D_YTD": h_amount}})
+        
         # Customer Credit Information
-        if customer[11] == constants.BAD_CREDIT:
+        if customer["C_CREDIT"] == constants.BAD_CREDIT:
             newData = " ".join(map(str, [c_id, c_d_id, c_w_id, d_id, w_id, h_amount]))
             c_data = (newData + "|" + c_data)
             if len(c_data) > constants.MAX_C_DATA: c_data = c_data[:constants.MAX_C_DATA]
-            self.cursor.execute(q["updateBCCustomer"], [c_balance, c_ytd_payment, c_payment_cnt, c_data, c_w_id, c_d_id, c_id])
+            
+            # updateBCCustomer
+            self.customer.update(c, {"$set": {"C_BALANCE": c_balance, "C_YTD_PAYMENT": c_ytd_payment, "C_PAYMENT_CNT": c_payment_cnt, "C_DATA": c_data}})
         else:
             c_data = ""
-            self.cursor.execute(q["updateGCCustomer"], [c_balance, c_ytd_payment, c_payment_cnt, c_w_id, c_d_id, c_id])
+            # updateGCCustomer
+            self.customer.update(c, {"$set": {"C_BALANCE": c_balance, "C_YTD_PAYMENT": c_ytd_payment, "C_PAYMENT_CNT": c_payment_cnt}})
 
         # Concatenate w_name, four spaces, d_name
-        h_data = "%s    %s" % (warehouse[0], district[0])
-        # Create the history record
-        self.cursor.execute(q["insertHistory"], [c_id, c_d_id, c_w_id, d_id, w_id, h_date, h_amount, h_data])
-
-        self.conn.commit()
+        h_data = "%s    %s" % (w["W_NAME"], district["D_NAME"])
+        
+        # insertHistory
+        self.history.insert({"H_C_ID": c_id, "H_C_D_ID": c_d_id, "H_C_W_ID": c_w_id, "H_D_ID": d_id, "H_W_ID": w_id, "H_DATE": h_date, "H_AMOUNT": h_amount, "H_DATA": h_data})
 
         # TPC-C 2.5.3.3: Must display the following fields:
         # W_ID, D_ID, C_ID, C_D_ID, C_W_ID, W_STREET_1, W_STREET_2, W_CITY, W_STATE, W_ZIP,
@@ -538,27 +543,31 @@ class MongodbDriver(AbstractDriver):
         # H_AMOUNT, and H_DATE.
 
         # Hand back all the warehouse, district, and customer data
-        return [ warehouse, district, customer ]
+        return [ w, d, c ]
         
     ## ----------------------------------------------
     ## doStockLevel
     ## ----------------------------------------------    
     def doStockLevel(self, params):
-        q = TXN_QUERIES["STOCK_LEVEL"]
-
         w_id = params["w_id"]
         d_id = params["d_id"]
         threshold = params["threshold"]
         
-        self.cursor.execute(q["getOId"], [w_id, d_id])
-        result = self.cursor.fetchone()
-        assert result
-        o_id = result[0]
+        # getOId
+        d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id}, {"D_NEXT_O_ID": 1})
+        assert d
+        o_id = d["D_NEXT_O_ID"]
         
-        self.cursor.execute(q["getStockCount"], [w_id, d_id, o_id, (o_id - 20), w_id, threshold])
-        result = self.cursor.fetchone()
-        
-        self.conn.commit()
+        # getStockCount
+        # Outer Table: ORDER_LINE
+        # Inner Table: STOCK
+        orderLines = self.order_line.find({"OL_W_ID": w_id, "OL_D_ID": d_id, "OL_O_ID": {"$lt": o_id, "$gte": o_id-20}}, {"OL_I_ID": 1})
+        assert orderLines
+        ol_ids = set()
+        for ol in orderLines:
+            ol_ids.add(ol["OL_I_ID"])
+        ## FOR
+        result = self.stock.find({"S_W_ID": w_id, "S_I_ID": {"$in": ol_ids}, "S_QUANTITY": {"$lt": threshold}}).count()
         
         return int(result[0])
         
