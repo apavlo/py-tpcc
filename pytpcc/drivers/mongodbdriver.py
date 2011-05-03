@@ -293,20 +293,27 @@ class MongodbDriver(AbstractDriver):
                     assert o_idx < len(c[constants.TABLENAME_ORDERS])
                     o = c[constants.TABLENAME_ORDERS][o_idx]
                     if not tableName in o: o[tableName] = [ ]
-                    o[tableName].append(dict(map(lambda i: (columns[i], t[i]), num_columns)))
+                    o[tableName].append(dict(map(lambda i: (columns[i], t[i]), num_columns[4:])))
                 ## FOR
                     
             ## Otherwise we have to find the CUSTOMER record for the other tables
             ## and append ourselves to them
             else:
-                key_start = 1 if tableName == constants.TABLENAME_ORDERS else 0
+                if tableName == constants.TABLENAME_ORDERS:
+                    key_start = 1
+                    cols = num_columns[0:1] + num_columns[4:]
+                else:
+                    key_start = 0
+                    cols = num_columns[3:]
+                    
                 for t in tuples:
                     c_key = tuple(t[key_start:key_start+3]) # C_ID, D_ID, W_ID
                     assert c_key in self.w_customers, "Customer Key: %s\nAll Keys:\n%s" % (str(c_key), "\n".join(map(str, sorted(self.w_customers.keys()))))
                     c = self.w_customers[c_key]
+                    
                     if not tableName in c: c[tableName] = [ ]
-                    c[tableName].append(dict(map(lambda i: (columns[i], t[i]), num_columns)))
-
+                    c[tableName].append(dict(map(lambda i: (columns[i], t[i]), cols)))
+                    
                     ## Since ORDER_LINE doesn't have a C_ID, we have to store a reference to
                     ## this ORDERS record so that we can look it up later
                     if tableName == constants.TABLENAME_ORDERS:
@@ -354,39 +361,58 @@ class MongodbDriver(AbstractDriver):
         w_id = params["w_id"]
         o_carrier_id = params["o_carrier_id"]
         ol_delivery_d = params["ol_delivery_d"]
-
+        
         result = [ ]
         for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE+1):
             ## getNewOrder
-            newOrder = self.new_order.find_one({"D_ID": d_id, "D_W_ID": w_id}, {"no_o_id": 1})
-            if newOrder == None:
+            no = self.new_order.find_one({"NO_D_ID": d_id, "NO_W_ID": w_id}, {"NO_O_ID": 1})
+            if no == None:
                 ## No orders for this district: skip it. Note: This must be reported if > 1%
                 continue
-            assert len(newOrder) > 0
-            no_o_id = neworder["no_o_id"]
+            assert len(no) > 0
+            o_id = no["NO_O_ID"]
             
-            ## getCId
-            customer = self.orders.find_one({"O_ID": no_o_id, "O_D_ID": d_id, "O_W_ID": w_id}, {"C_ID": 1})
-            assert customer != None
-            c_id = customer["C_ID"]
+            if self.denormalize:
+                ## getCId
+                c = self.customer.find_one({"ORDERS.O_ID": o_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"C_ID": 1, "ORDERS.ORDER_LINE": 1})
+                assert c != None
+                c_id = c["C_ID"]
+                orderLines = c["ORDERS"][0]["ORDER_LINE"]
+                
+                ## sumOLAmount + updateOrderLine
+                ol_total = 0
+                for ol in orderLines:
+                    ol_total += ol["OL_AMOUNT"]
+                    ## We have to do this here because we can't update the nested array atomically
+                    ol["OL_DELIVERY_D"] = ol_delivery_d
 
-            ## sumOLAmount
-            orderLines = self.order_line.find({"OL_O_ID": no_o_id, "OL_D_ID": d_id, "OL_W_ID": w_id},
-                                              {"OL_AMOUNT": 1})
-            ol_total = 0.0
-            for ol in orderLines:
-                ol_total += ol["OL_AMOUNT"]
-            ## FOR
+                ## updateOrders + updateCustomer
+                self.customer.update({"_id": c['_id'], "ORDERS.O_ID": o_id}, {"$set": {"ORDERS.$.O_CARRIER_ID": o_carrier_id, "ORDERS.$.ORDER_LINE": orderLines}, "$inc": {"C_BALANCE": ol_total}}, multi=False)
+
+            else:
+                ## getCId
+                o = self.orders.find_one({"O_ID": o_id, "O_D_ID": d_id, "O_W_ID": w_id}, {"C_ID": 1})
+                assert o != None
+                c_id = o["C_ID"]
+                
+                ## sumOLAmount
+                orderLines = self.order_line.find({"OL_O_ID": o_id, "OL_D_ID": d_id, "OL_W_ID": w_id}, {"OL_AMOUNT": 1})
+                assert orderLines != None
+                ol_total = sum([ol["OL_AMOUNT"] for ol in orderLines])
+                
+                ## updateOrders
+                self.orders.update(o, {"$set": {"O_CARRIER_ID": o_carrier_id}}, multi=False)
+            
+                ## updateOrderLine
+                self.order_line.update({"OL_O_ID": o_id, "OL_D_ID": d_id, "OL_W_ID": w_id}, {"$set": {"OL_DELIVERY_D": ol_delivery_d}}, multi=True)
+                
+                ## updateCustomer
+                self.customer.update({"C_ID": c_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"$inc": {"C_BALANCE": ol_total}})
+            ## IF
 
             ## deleteNewOrder
-            self.new_order.remove({"NO_D_ID": d_id, "NO_W_ID": w_id, "NO_O_ID": no_o_id})
-            
-            ## updateOrders
-            self.orders.update({"O_ID": no_o_id, "O_D_ID": d_id, "O_W_ID": w_id}, {"$set": {"O_CARRIER_ID": o_carrier_id}}, multi=False)
-            
-            ## updateOrderLine
-            self.order_line.update({"OL_O_ID": no_o_id, "OL_D_ID": d_id, "OL_W_ID": w_id}, {"$set": {"OL_DELIVERY_D": ol_delivery_d}}, multi=False)
-            
+            self.new_order.remove({"_id": no['_id']})
+
             # These must be logged in the "result file" according to TPC-C 2.7.2.2 (page 39)
             # We remove the queued time, completed time, w_id, and o_carrier_id: the client can figure
             # them out
@@ -394,10 +420,7 @@ class MongodbDriver(AbstractDriver):
             assert ol_total != None, "ol_total is NULL: there are no order lines. This should not happen"
             assert ol_total > 0.0
 
-            ## updateCustomer
-            self.customer.update({"C_ID": c_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"$inc": {"C_BALANCE": ol_total}})
-
-            result.append((d_id, no_o_id))
+            result.append((d_id, o_id))
         ## FOR
         return result
 

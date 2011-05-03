@@ -176,7 +176,7 @@ class SqliteDriver(AbstractDriver):
         for d_id in range(1, constants.DISTRICTS_PER_WAREHOUSE+1):
             self.cursor.execute(q["getNewOrder"], [d_id, w_id])
             newOrder = self.cursor.fetchone()
-            if len(newOrder) == 0:
+            if newOrder == None:
                 ## No orders for this district: skip it. Note: This must be reported if > 1%
                 continue
             assert len(newOrder) > 0
