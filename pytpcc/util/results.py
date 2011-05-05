@@ -90,6 +90,9 @@ class Results:
         self.stop = r.stop
             
     def __str__(self):
+        return self.show()
+        
+    def show(self, load_time = None):
         if self.start == None:
             return "Benchmark not started"
         if self.stop == None:
@@ -100,8 +103,13 @@ class Results:
         col_width = 16
         total_width = (col_width*4)+2
         f = "\n  " + (("%-" + str(col_width) + "s")*4)
+        line = "-"*total_width
+
+        ret = u"" + "="*total_width + "\n"
+        if load_time != None:
+            ret += "Data Loading Time: %d seconds\n\n" % (load_time)
         
-        ret = u"Results after %d seconds\n%s" % (duration, "-"*total_width)
+        ret += "Execution Results after %d seconds\n%s" % (duration, line)
         ret += f % ("", "Executed", u"Time (µs)", "Rate")
         
         total_time = 0

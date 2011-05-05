@@ -37,6 +37,7 @@ import logging
 import re
 import argparse
 import glob
+import time 
 import multiprocessing
 from ConfigParser import SafeConfigParser
 from pprint import pprint,pformat
@@ -91,6 +92,7 @@ def startExecution(driverClass, scaleParameters, args, config):
         asyncr.wait()
         r = asyncr.get()
         assert r != None, "No results object returned!"
+        if type(r) == int and r == -1: sys.exit(1)
         total_results.append(r)
     ## FOR
     
@@ -175,6 +177,7 @@ if __name__ == '__main__':
         config = dict(map(lambda x: (x, defaultConfig[x][1]), defaultConfig.keys()))
     config['reset'] = args['reset']
     config['execute'] = False
+    if config['reset']: logging.info("Reseting database")
     driver.loadConfig(config)
     logging.info("Initializing TPC-C benchmark using %s" % driver)
 
@@ -184,19 +187,28 @@ if __name__ == '__main__':
     if args['debug']: logging.debug("Scale Parameters:\n%s" % scaleParameters)
     
     ## DATA LOADER!!!
+    load_time = None
     if not args['no_load']:
         l = loader.Loader(driver, scaleParameters)
         logging.info("Loading TPC-C benchmark data using %s" % (driver))
+        load_start = time.time()
         driver.loadStart()
         l.execute()
         driver.loadFinish()
+        load_time = time.time() - load_start
     ## IF
     
     ## WORKLOAD DRIVER!!!
     if not args['no_execute']:
-        results = startExecution(driverClass, scaleParameters, args, config)
+        if args['clients'] == 1:
+            e = executor.Executor(driver, scaleParameters, stop_on_error=args['stop_on_error'])
+            driver.executeStart()
+            results = e.execute(args['duration'])
+            driver.executeFinish()
+        else:
+            results = startExecution(driverClass, scaleParameters, args, config)
         assert results
-        print results
+        print results.show(load_time)
     ## IF
     
 ## MAIN

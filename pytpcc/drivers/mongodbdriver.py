@@ -239,7 +239,7 @@ class MongodbDriver(AbstractDriver):
         if self.denormalize: logging.debug("Using denormalized data model")
         
         if config["reset"]:
-            logging.info("Deleting database '%s'" % self.database.name)
+            logging.debug("Deleting database '%s'" % self.database.name)
             for name in constants.ALL_TABLES:
                 if name in self.database.collection_names():
                     self.database.drop_collection(name)
@@ -339,7 +339,7 @@ class MongodbDriver(AbstractDriver):
     ## ----------------------------------------------
     def loadFinishDistrict(self, w_id, d_id):
         if self.denormalize:
-            logging.info("Pushing %d denormalized CUSTOMER records for WAREHOUSE %d DISTRICT %d into MongoDB" % (len(self.w_customers), w_id, d_id))
+            logging.debug("Pushing %d denormalized CUSTOMER records for WAREHOUSE %d DISTRICT %d into MongoDB" % (len(self.w_customers), w_id, d_id))
             self.database[constants.TABLENAME_CUSTOMER].insert(self.w_customers.values())
             self.w_customers.clear()
             self.w_orders.clear()
