@@ -70,7 +70,11 @@ class AbstractDriver(object):
     def loadFinish(self):
         """Optional callback to indicate to the driver that the data loading phase is finished."""
         return None
-    
+
+    def loadFinishItem(self):
+        """Optional callback to indicate to the driver that the ITEM data has been passed to the driver."""
+        return None
+
     def loadFinishWarehouse(self, w_id):
         """Optional callback to indicate to the driver that the data for the given warehouse is finished."""
         return None

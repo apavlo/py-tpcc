@@ -53,6 +53,7 @@ class Loader:
         
         ## Item Table
         self.loadItems()
+        self.handle.loadFinishItem()
             
         ## Then create the warehouse-specific tuples
         for w_id in range(self.params.starting_warehouse, self.params.ending_warehouse+1):

@@ -94,7 +94,7 @@ def startExecution(driverClass, scaleParameters, args, config):
         total_results.append(r)
     ## FOR
     
-    return (r)
+    return (total_results)
 ## DEF
 
 ## ==============================================

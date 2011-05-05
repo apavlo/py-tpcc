@@ -65,11 +65,11 @@ class Executor:
             try:
                 val = self.driver.executeTransaction(txn, params)
             except (Exception, AssertionError):
-                logging.fatal("Failed to execute Transaction '%s'" % txn)
+                logging.error("Failed to execute Transaction '%s' [halt=%s]" % (txn, self.stop_on_error))
                 traceback.print_exc(file=sys.stdout)
                 if self.stop_on_error: raise
                 r.abortTransaction(txn_id)
-                pass
+                continue
 
             #if debug: logging.debug("%s\nParameters:\n%s\nResult:\n%s" % (txn, pformat(params), pformat(val)))
             

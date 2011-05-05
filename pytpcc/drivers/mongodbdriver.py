@@ -377,7 +377,7 @@ class MongodbDriver(AbstractDriver):
             if self.denormalize:
                 ## getCId
                 c = self.customer.find_one({"ORDERS.O_ID": o_id, "C_D_ID": d_id, "C_W_ID": w_id}, {"C_ID": 1, "ORDERS.O_ID": 1, "ORDERS.ORDER_LINE": 1})
-                assert c != None
+                assert c != None, "No customer record [O_ID=%d, D_ID=%d, W_ID=%d]" % (o_id, d_id, w_id)
                 c_id = c["C_ID"]
                 
                 ## sumOLAmount + updateOrderLine

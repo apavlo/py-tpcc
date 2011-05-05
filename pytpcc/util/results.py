@@ -78,13 +78,17 @@ class Results:
         self.txn_counters[txn_name] = total_cnt + 1
         
     def append(self, r):
-        for txn_name in r.txn_counters:
-            orig = self.txn_counters.get(txn_name, 0)
-            self.txn_counters[txn_name] = orig + r.txn_counters[txn_name]
-        for txn_name in r.txn_counters:
-            orig = self.txn_times.get(txn_name, 0)
-            self.txn_times[txn_name] = orig + r.txn_times[txn_name]
-    
+        for txn_name in r.txn_counters.keys():
+            orig_cnt = self.txn_counters.get(txn_name, 0)
+            orig_time = self.txn_times.get(txn_name, 0)
+
+            self.txn_counters[txn_name] = orig_cnt + r.txn_counters[txn_name]
+            self.txn_times[txn_name] = orig_time + r.txn_times[txn_name]
+            #logging.debug("%s [cnt=%d, time=%d]" % (txn_name, self.txn_counters[txn_name], self.txn_times[txn_name]))
+        ## HACK
+        self.start = r.start
+        self.stop = r.stop
+            
     def __str__(self):
         if self.start == None:
             return "Benchmark not started"
