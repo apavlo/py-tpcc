@@ -29,40 +29,55 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 # -----------------------------------------------------------------------
 
+import sys
+import multiprocessing
+import time
+import random
+import traceback
 import logging
 from datetime import datetime
 from pprint import pprint,pformat
 
-import constants, time
+import constants
 from util import *
+
 
 class Executor:
     
-    def __init__(self, handle, parameters):
-        self.handle = handle
-        self.params = parameters
+    def __init__(self, driver, scaleParameters, stop_on_error = False):
+        self.driver = driver
+        self.scaleParameters = scaleParameters
+        self.stop_on_error = stop_on_error
     ## DEF
     
-    def execute(self, results, duration):
-        assert results
+    def execute(self, duration):
+        r = results.Results()
+        assert r
         logging.info("Executing benchmark for %d seconds" % duration)
-        start = results.startBenchmark()
-        
+        start = r.startBenchmark()
         debug = logging.getLogger().isEnabledFor(logging.DEBUG)
 
         while (time.time() - start) <= duration:
             txn, params = self.doOne()
-            txn_id = results.startTransaction(txn)
+            txn_id = r.startTransaction(txn)
             
             if debug: logging.debug("Executing '%s' transaction" % txn)
-            r = self.handle.executeTransaction(txn, params)
-            if debug: logging.debug("%s\nParameters:\n%s\nResult:\n%s" % (txn, pformat(params), pformat(r)))
+            try:
+                val = self.driver.executeTransaction(txn, params)
+            except (Exception, AssertionError):
+                logging.fatal("Failed to execute Transaction '%s'" % txn)
+                traceback.print_exc(file=sys.stdout)
+                if self.stop_on_error: raise
+                r.abortTransaction(txn_id)
+                pass
+
+            #if debug: logging.debug("%s\nParameters:\n%s\nResult:\n%s" % (txn, pformat(params), pformat(val)))
             
-            results.stopTransaction(txn_id)
+            r.stopTransaction(txn_id)
         ## WHILE
             
-        results.stopBenchmark()
-        return (results)
+        r.stopBenchmark()
+        return (r)
     ## DEF
     
     def doOne(self):
@@ -119,14 +134,14 @@ class Executor:
         i_qtys = [ ]
         for i in range(0, ol_cnt):
             if rollback and i + 1 == ol_cnt:
-                i_ids.append(self.params.items + 1)
+                i_ids.append(self.scaleParameters.items + 1)
             else:
                 i_ids.append(self.makeItemId())
 
             ## 1% of items are from a remote warehouse
             remote = (rand.number(1, 100) == 1)
-            if self.params.warehouses > 1 and remote:
-                i_w_ids.append(rand.numberExcluding(self.params.starting_warehouse, self.params.ending_warehouse, w_id))
+            if self.scaleParameters.warehouses > 1 and remote:
+                i_w_ids.append(rand.numberExcluding(self.scaleParameters.starting_warehouse, self.scaleParameters.ending_warehouse, w_id))
             else:
                 i_w_ids.append(w_id)
 
@@ -148,7 +163,7 @@ class Executor:
         
         ## 60%: order status by last name
         if rand.number(1, 100) <= 60:
-            c_last = rand.makeRandomLastName(self.params.customersPerDistrict)
+            c_last = rand.makeRandomLastName(self.scaleParameters.customersPerDistrict)
 
         ## 40%: order status by id
         else:
@@ -175,19 +190,19 @@ class Executor:
         h_date = datetime.now()
 
         ## 85%: paying through own warehouse (or there is only 1 warehouse)
-        if self.params.warehouses == 1 or x <= 85:
+        if self.scaleParameters.warehouses == 1 or x <= 85:
             c_w_id = w_id
             c_d_id = d_id
         ## 15%: paying through another warehouse:
         else:
             ## select in range [1, num_warehouses] excluding w_id
-            c_w_id = rand.numberExcluding(self.params.starting_warehouse, self.params.ending_warehouse, w_id)
+            c_w_id = rand.numberExcluding(self.scaleParameters.starting_warehouse, self.scaleParameters.ending_warehouse, w_id)
             assert c_w_id != w_id
             c_d_id = self.makeDistrictId()
 
         ## 60%: payment by last name
         if y <= 60:
-            c_last = rand.makeRandomLastName(self.params.customersPerDistrict)
+            c_last = rand.makeRandomLastName(self.scaleParameters.customersPerDistrict)
         ## 40%: payment by id
         else:
             assert y > 60
@@ -208,22 +223,22 @@ class Executor:
     ## DEF
 
     def makeWarehouseId(self):
-        w_id = rand.number(self.params.starting_warehouse, self.params.ending_warehouse)
-        assert(w_id >= self.params.starting_warehouse), "Invalid W_ID: %d" % w_id
-        assert(w_id <= self.params.ending_warehouse), "Invalid W_ID: %d" % w_id
+        w_id = rand.number(self.scaleParameters.starting_warehouse, self.scaleParameters.ending_warehouse)
+        assert(w_id >= self.scaleParameters.starting_warehouse), "Invalid W_ID: %d" % w_id
+        assert(w_id <= self.scaleParameters.ending_warehouse), "Invalid W_ID: %d" % w_id
         return w_id
     ## DEF
 
     def makeDistrictId(self):
-        return rand.number(1, self.params.districtsPerWarehouse)
+        return rand.number(1, self.scaleParameters.districtsPerWarehouse)
     ## DEF
 
     def makeCustomerId(self):
-        return rand.NURand(1023, 1, self.params.customersPerDistrict)
+        return rand.NURand(1023, 1, self.scaleParameters.customersPerDistrict)
     ## DEF
 
     def makeItemId(self):
-        return rand.NURand(8191, 1, self.params.items)
+        return rand.NURand(8191, 1, self.scaleParameters.items)
     ## DEF
 ## CLASS
 

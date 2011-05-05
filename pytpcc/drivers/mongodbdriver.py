@@ -247,6 +247,7 @@ class MongodbDriver(AbstractDriver):
         ## IF
         
         ## Setup!
+        load_indexes = ('execute' in config and not config['execute'])
         for name in constants.ALL_TABLES:
             if self.denormalize and name in MongodbDriver.DENORMALIZED_TABLES[1:]: continue
             
@@ -254,8 +255,8 @@ class MongodbDriver(AbstractDriver):
             self.__dict__[name.lower()] = self.database[name]
             
             ## Create Indexes
-            if name in TABLE_INDEXES and \
-               (self.denormalize or (self.denormalize == False and not name in MongodbDriver.DENORMALIZED_TABLES[1:])):
+            if load_indexes and name in TABLE_INDEXES and \
+            (self.denormalize or (self.denormalize == False and not name in MongodbDriver.DENORMALIZED_TABLES[1:])):
                 logging.debug("Creating index for %s" % name)
                 self.database[name].create_index(map(lambda x: (x, pymongo.ASCENDING), TABLE_INDEXES[name]))
         ## FOR
@@ -789,6 +790,7 @@ class MongodbDriver(AbstractDriver):
             assert c
             orderLines = [ ]
             for ol in c:
+                assert "ORDER_LINE" in ol["ORDERS"][0]
                 orderLines.extend(ol["ORDERS"][0]["ORDER_LINE"])
         else:
             orderLines = self.order_line.find({"OL_W_ID": w_id, "OL_D_ID": d_id, "OL_O_ID": {"$lt": o_id, "$gte": o_id-20}}, {"OL_I_ID": 1})

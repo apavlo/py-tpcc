@@ -25,12 +25,11 @@
 # -----------------------------------------------------------------------
 
 import logging
-from datetime import datetime
 import time
+
 class Results:
     
-    def __init__(self, handle):
-        self.handle = handle
+    def __init__(self):
         self.start = None
         self.stop = None
         self.txn_id = 0
@@ -59,6 +58,12 @@ class Results:
         self.running[id] = (txn, time.time())
         return id
         
+    def abortTransaction(self, id):
+        """Abort a transaction and discard its times"""
+        assert id in self.running
+        txn_name, txn_start = self.running[id]
+        del self.running[id]
+        
     def stopTransaction(self, id):
         """Record that the benchmark completed an invocation of the given transaction"""
         assert id in self.running
@@ -71,6 +76,14 @@ class Results:
         
         total_cnt = self.txn_counters.get(txn_name, 0)
         self.txn_counters[txn_name] = total_cnt + 1
+        
+    def append(self, r):
+        for txn_name in r.txn_counters:
+            orig = self.txn_counters.get(txn_name, 0)
+            self.txn_counters[txn_name] = orig + r.txn_counters[txn_name]
+        for txn_name in r.txn_counters:
+            orig = self.txn_times.get(txn_name, 0)
+            self.txn_times[txn_name] = orig + r.txn_times[txn_name]
     
     def __str__(self):
         if self.start == None:
@@ -84,7 +97,7 @@ class Results:
         total_width = (col_width*4)+2
         f = "\n  " + (("%-" + str(col_width) + "s")*4)
         
-        ret = u"%s Results after %d seconds\n%s" % (str(self.handle), duration, "-"*total_width)
+        ret = u"Results after %d seconds\n%s" % (duration, "-"*total_width)
         ret += f % ("", "Executed", u"Time (µs)", "Rate")
         
         total_time = 0

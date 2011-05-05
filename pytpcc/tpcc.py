@@ -37,6 +37,7 @@ import logging
 import re
 import argparse
 import glob
+import multiprocessing
 from ConfigParser import SafeConfigParser
 from pprint import pprint,pformat
 
@@ -50,13 +51,13 @@ logging.basicConfig(level = logging.INFO,
                     stream = sys.stdout)
                     
 ## ==============================================
-## createDriverHandle
+## createDriverClass
 ## ==============================================
-def createDriverHandle(name, ddl):
+def createDriverClass(name):
     full_name = "%sDriver" % name.title()
     mod = __import__('drivers.%s' % full_name.lower(), globals(), locals(), [full_name])
     klass = getattr(mod, full_name)
-    return klass(ddl)
+    return klass
 ## DEF
 
 ## ==============================================
@@ -67,6 +68,53 @@ def getDrivers():
     for f in map(lambda x: os.path.basename(x).replace("driver.py", ""), glob.glob("./drivers/*driver.py")):
         if f != "abstract": drivers.append(f)
     return (drivers)
+## DEF
+
+## ==============================================
+## startExecution
+## ==============================================
+def startExecution(driverClass, scaleParameters, args, config):
+    logging.debug("Creating client pool with %d processes" % args['clients'])
+    pool = multiprocessing.Pool(args['clients'])
+    debug = logging.getLogger().isEnabledFor(logging.DEBUG)
+    
+    worker_results = [ ]
+    for i in range(args['clients']):
+        r = pool.apply_async(workerFunc, (driverClass, args, config, scaleParameters, debug,))
+        worker_results.append(r)
+    ## FOR
+    pool.close()
+    pool.join()
+    
+    total_results = results.Results()
+    for asyncr in worker_results:
+        asyncr.wait()
+        r = asyncr.get()
+        assert r != None, "No results object returned!"
+        total_results.append(r)
+    ## FOR
+    
+    return (r)
+## DEF
+
+## ==============================================
+## workerFunc
+## ==============================================
+def workerFunc(driverClass, args, config, scaleParameters, debug):
+    driver = driverClass(args['ddl'])
+    assert driver != None
+    logging.debug("Starting client execution: %s" % driver)
+    
+    config['execute'] = True
+    config['reset'] = False
+    driver.loadConfig(config)
+
+    e = executor.Executor(driver, scaleParameters, stop_on_error=args['stop_on_error'])
+    driver.executeStart()
+    results = e.execute(args['duration'])
+    driver.executeFinish()
+    
+    return results
 ## DEF
 
 ## ==============================================
@@ -88,6 +136,10 @@ if __name__ == '__main__':
                          help='How long to run the benchmark in seconds')
     aparser.add_argument('--ddl', default=os.path.realpath(os.path.join(os.path.dirname(__file__), "tpcc.sql")),
                          help='Path to the TPC-C DDL SQL file')
+    aparser.add_argument('--clients', default=1, type=int, metavar='N',
+                         help='The number of blocking clients to fork')
+    aparser.add_argument('--stop-on-error', action='store_true',
+                         help='Stop the transaction execution when the driver throws an exception.')
     aparser.add_argument('--no-load', action='store_true',
                          help='Disable loading the data')
     aparser.add_argument('--no-execute', action='store_true',
@@ -100,12 +152,14 @@ if __name__ == '__main__':
 
     if args['debug']: logging.getLogger().setLevel(logging.DEBUG)
         
-    ## Create a handle to the client driver
-    handle = createDriverHandle(args['system'], args['ddl'])
-    assert handle != None, "Failed to create '%s' handle" % args['system']
+    ## Create a handle to the target client driver
+    driverClass = createDriverClass(args['system'])
+    assert driverClass != None, "Failed to find '%s' class" % args['system']
+    driver = driverClass(args['ddl'])
+    assert driver != None, "Failed to create '%s' driver" % args['system']
     if args['print_config']:
-        config = handle.makeDefaultConfig()
-        print handle.formatConfig(config)
+        config = driver.makeDefaultConfig()
+        print driver.formatConfig(config)
         print
         sys.exit(0)
 
@@ -117,29 +171,31 @@ if __name__ == '__main__':
         config = dict(cparser.items(args['system']))
     else:
         logging.debug("Using default configuration for %s" % args['system'])
-        defaultConfig = handle.makeDefaultConfig()
+        defaultConfig = driver.makeDefaultConfig()
         config = dict(map(lambda x: (x, defaultConfig[x][1]), defaultConfig.keys()))
     config['reset'] = args['reset']
-    handle.loadConfig(config)
-    logging.info("Initializing TPC-C benchmark using %s" % handle)
+    config['execute'] = False
+    driver.loadConfig(config)
+    logging.info("Initializing TPC-C benchmark using %s" % driver)
 
     ## Create ScaleParameters
-    parameters = scaleparameters.makeWithScaleFactor(args['warehouses'], args['scalefactor'])
+    scaleParameters = scaleparameters.makeWithScaleFactor(args['warehouses'], args['scalefactor'])
     nurand = rand.setNURand(nurand.makeForLoad())
-    if args['debug']: logging.debug("Scale Parameters:\n%s" % parameters)
+    if args['debug']: logging.debug("Scale Parameters:\n%s" % scaleParameters)
     
     ## DATA LOADER!!!
     if not args['no_load']:
-        handle.loadStart()
-        loader.Loader(handle, parameters).execute()
-        handle.loadFinish()
+        l = loader.Loader(driver, scaleParameters)
+        logging.info("Loading TPC-C benchmark data using %s" % (driver))
+        driver.loadStart()
+        l.execute()
+        driver.loadFinish()
+    ## IF
     
     ## WORKLOAD DRIVER!!!
     if not args['no_execute']:
-        results = results.Results(handle)
-        handle.executeStart()
-        executor.Executor(handle, parameters).execute(results, args['duration'])
-        handle.executeFinish()
+        results = startExecution(driverClass, scaleParameters, args, config)
+        assert results
         print results
     ## IF
     

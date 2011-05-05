@@ -285,6 +285,9 @@ class SqliteDriver(AbstractDriver):
 
             self.cursor.execute(q["getStockInfo"] % (d_id), [ol_i_id, ol_supply_w_id])
             stockInfo = self.cursor.fetchone()
+            if len(stockInfo) == 0:
+                logging.warn("No STOCK record for (ol_i_id=%d, ol_supply_w_id=%d)" % (ol_i_id, ol_supply_w_id))
+                continue
             s_quantity = stockInfo[0]
             s_ytd = stockInfo[2]
             s_order_cnt = stockInfo[3]
