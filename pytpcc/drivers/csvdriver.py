@@ -54,7 +54,7 @@ class CsvDriver(AbstractDriver):
     ## DEF
     
     def loadConfig(self, config):
-        for key in map(lambda x: x[0], CsvDriver.DEFAULT_CONFIG):
+        for key in CsvDriver.DEFAULT_CONFIG.keys():
             assert key in config, "Missing parameter '%s' in %s configuration" % (key, self.name)
         
         self.table_directory = config["table_directory"]

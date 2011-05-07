@@ -25,10 +25,6 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 # -----------------------------------------------------------------------
 
-##
-## Usage:
-## python ./main.py [system name] [path/to/config.file]
-
 import sys
 import os
 import string
