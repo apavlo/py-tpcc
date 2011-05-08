@@ -42,9 +42,12 @@ from util import *
 
 class Loader:
     
-    def __init__(self, handle, params):
+    def __init__(self, handle, scaleParameters, w_ids, needLoadItems):
         self.handle = handle
-        self.params = params
+        self.scaleParameters = scaleParameters
+        self.w_ids = w_ids
+        self.needLoadItems = needLoadItems
+        self.batch_size = 2500
         
     ## ==============================================
     ## execute
@@ -52,11 +55,13 @@ class Loader:
     def execute(self):
         
         ## Item Table
-        self.loadItems()
-        self.handle.loadFinishItem()
+        if self.needLoadItems:
+            logging.debug("Loading ITEM table")
+            self.loadItems()
+            self.handle.loadFinishItem()
             
         ## Then create the warehouse-specific tuples
-        for w_id in range(self.params.starting_warehouse, self.params.ending_warehouse+1):
+        for w_id in self.w_ids:
             self.loadWarehouse(w_id)
             self.handle.loadFinishWarehouse(w_id)
         ## FOR
@@ -67,26 +72,23 @@ class Loader:
     ## loadItems
     ## ==============================================
     def loadItems(self):
-        batch_size = 1000
-        
         ## Select 10% of the rows to be marked "original"
-        originalRows = rand.selectUniqueIds(self.params.items / 10, 1, self.params.items)
-
+        originalRows = rand.selectUniqueIds(self.scaleParameters.items / 10, 1, self.scaleParameters.items)
         
         ## Load all of the items
         tuples = [ ]
         total_tuples = 0
-        for i in range(1, self.params.items+1):
+        for i in range(1, self.scaleParameters.items+1):
             original = (i in originalRows)
             tuples.append(self.generateItem(i, original))
             total_tuples += 1
-            if len(tuples) == batch_size:
-                logging.debug("LOAD - %s: %5d / %d" % (constants.TABLENAME_ITEM, total_tuples, self.params.items))
+            if len(tuples) == self.batch_size:
+                logging.debug("LOAD - %s: %5d / %d" % (constants.TABLENAME_ITEM, total_tuples, self.scaleParameters.items))
                 self.handle.loadTuples(constants.TABLENAME_ITEM, tuples)
                 tuples = [ ]
         ## FOR
         if len(tuples) > 0:
-            logging.debug("LOAD - %s: %5d / %d" % (constants.TABLENAME_ITEM, total_tuples, self.params.items))
+            logging.debug("LOAD - %s: %5d / %d" % (constants.TABLENAME_ITEM, total_tuples, self.scaleParameters.items))
             self.handle.loadTuples(constants.TABLENAME_ITEM, tuples)
     ## DEF
 
@@ -94,7 +96,7 @@ class Loader:
     ## loadWarehouse
     ## ==============================================
     def loadWarehouse(self, w_id):
-        logging.debug("LOAD - %s: %d / %d" % (constants.TABLENAME_WAREHOUSE, w_id, self.params.warehouses))
+        logging.debug("LOAD - %s: %d / %d" % (constants.TABLENAME_WAREHOUSE, w_id, len(self.w_ids)))
         
         ## WAREHOUSE
         w_tuples = [ self.generateWarehouse(w_id) ]
@@ -102,45 +104,45 @@ class Loader:
 
         ## DISTRICT
         d_tuples = [ ]
-        for d_id in range(1, self.params.districtsPerWarehouse+1):
-            d_next_o_id = self.params.customersPerDistrict + 1
+        for d_id in range(1, self.scaleParameters.districtsPerWarehouse+1):
+            d_next_o_id = self.scaleParameters.customersPerDistrict + 1
             d_tuples = [ self.generateDistrict(w_id, d_id, d_next_o_id) ]
             
             c_tuples = [ ]
             h_tuples = [ ]
             
             ## Select 10% of the customers to have bad credit
-            selectedRows = rand.selectUniqueIds(self.params.customersPerDistrict / 10, 1, self.params.customersPerDistrict)
+            selectedRows = rand.selectUniqueIds(self.scaleParameters.customersPerDistrict / 10, 1, self.scaleParameters.customersPerDistrict)
             
             ## TPC-C 4.3.3.1. says that o_c_id should be a permutation of [1, 3000]. But since it
             ## is a c_id field, it seems to make sense to have it be a permutation of the
             ## customers. For the "real" thing this will be equivalent
             cIdPermutation = [ ]
 
-            for c_id in range(1, self.params.customersPerDistrict+1):
+            for c_id in range(1, self.scaleParameters.customersPerDistrict+1):
                 badCredit = (c_id in selectedRows)
                 c_tuples.append(self.generateCustomer(w_id, d_id, c_id, badCredit, True))
                 h_tuples.append(self.generateHistory(w_id, d_id, c_id))
                 cIdPermutation.append(c_id)
             ## FOR
             assert cIdPermutation[0] == 1
-            assert cIdPermutation[self.params.customersPerDistrict - 1] == self.params.customersPerDistrict
+            assert cIdPermutation[self.scaleParameters.customersPerDistrict - 1] == self.scaleParameters.customersPerDistrict
             shuffle(cIdPermutation)
             
             o_tuples = [ ]
             ol_tuples = [ ]
             no_tuples = [ ]
             
-            for o_id in range(1, self.params.customersPerDistrict):
+            for o_id in range(1, self.scaleParameters.customersPerDistrict):
                 o_ol_cnt = rand.number(constants.MIN_OL_CNT, constants.MAX_OL_CNT)
                 
                 ## The last newOrdersPerDistrict are new orders
-                newOrder = ((self.params.customersPerDistrict - self.params.newOrdersPerDistrict) < o_id)
+                newOrder = ((self.scaleParameters.customersPerDistrict - self.scaleParameters.newOrdersPerDistrict) < o_id)
                 o_tuples.append(self.generateOrder(w_id, d_id, o_id, cIdPermutation[o_id - 1], o_ol_cnt, newOrder))
 
                 ## Generate each OrderLine for the order
                 for ol_number in range(0, o_ol_cnt):
-                    ol_tuples.append(self.generateOrderLine(w_id, d_id, o_id, ol_number, self.params.items, newOrder))
+                    ol_tuples.append(self.generateOrderLine(w_id, d_id, o_id, ol_number, self.scaleParameters.items, newOrder))
                 ## FOR
 
                 ## This is a new order: make one for it
@@ -158,13 +160,20 @@ class Loader:
         
         ## Select 10% of the stock to be marked "original"
         s_tuples = [ ]
-        selectedRows = rand.selectUniqueIds(self.params.items / 10, 1, self.params.items)
-        for i_id in range(1, self.params.items):
+        selectedRows = rand.selectUniqueIds(self.scaleParameters.items / 10, 1, self.scaleParameters.items)
+        total_tuples = 0
+        for i_id in range(1, self.scaleParameters.items+1):
             original = (i_id in selectedRows)
             s_tuples.append(self.generateStock(w_id, i_id, original))
+            if len(s_tuples) >= self.batch_size:
+                logging.debug("LOAD - %s [W_ID=%d]: %5d / %d" % (constants.TABLENAME_STOCK, w_id, total_tuples, self.scaleParameters.items))
+                self.handle.loadTuples(constants.TABLENAME_STOCK, s_tuples)
+                s_tuples = [ ]
+            total_tuples += 1
         ## FOR
-        self.handle.loadTuples(constants.TABLENAME_STOCK, s_tuples)
-        
+        if len(s_tuples) > 0:
+            logging.debug("LOAD - %s [W_ID=%d]: %5d / %d" % (constants.TABLENAME_STOCK, w_id, total_tuples, self.scaleParameters.items))
+            self.handle.loadTuples(constants.TABLENAME_STOCK, s_tuples)
     ## DEF
 
     ## ==============================================

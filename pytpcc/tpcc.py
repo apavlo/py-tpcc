@@ -68,6 +68,61 @@ def getDrivers():
 ## DEF
 
 ## ==============================================
+## startLoading
+## ==============================================
+def startLoading(driverClass, scaleParameters, args, config):
+    logging.debug("Creating client pool with %d processes" % args['clients'])
+    pool = multiprocessing.Pool(args['clients'])
+    debug = logging.getLogger().isEnabledFor(logging.DEBUG)
+    
+    # Split the warehouses into chunks
+    w_ids = map(lambda x: [ ], range(args['clients']))
+    for w_id in range(scaleParameters.starting_warehouse, scaleParameters.ending_warehouse+1):
+        idx = w_id % args['clients']
+        w_ids[idx].append(w_id)
+    ## FOR
+    
+    loader_results = [ ]
+    for i in range(args['clients']):
+        r = pool.apply_async(loaderFunc, (driverClass, scaleParameters, args, config, w_ids[i], True))
+        loader_results.append(r)
+    ## FOR
+    
+    pool.close()
+    logging.debug("Waiting for %d loaders to finish" % args['clients'])
+    pool.join()
+## DEF
+
+## ==============================================
+## loaderFunc
+## ==============================================
+def loaderFunc(driverClass, scaleParameters, args, config, w_ids, debug):
+    driver = driverClass(args['ddl'])
+    assert driver != None
+    logging.debug("Starting client execution: %s [warehouses=%d]" % (driver, len(w_ids)))
+    
+    config['load'] = True
+    config['execute'] = False
+    config['reset'] = False
+    driver.loadConfig(config)
+   
+    try:
+        loadItems = (1 in w_ids)
+        l = loader.Loader(driver, scaleParameters, w_ids, loadItems)
+        driver.loadStart()
+        l.execute()
+        driver.loadFinish()   
+    except KeyboardInterrupt:
+            return -1
+    except (Exception, AssertionError), ex:
+        logging.warn("Failed to load data: %s" % (ex))
+        #if debug:
+        traceback.print_exc(file=sys.stdout)
+        raise
+        
+## DEF
+
+## ==============================================
 ## startExecution
 ## ==============================================
 def startExecution(driverClass, scaleParameters, args, config):
@@ -77,7 +132,7 @@ def startExecution(driverClass, scaleParameters, args, config):
     
     worker_results = [ ]
     for i in range(args['clients']):
-        r = pool.apply_async(workerFunc, (driverClass, args, config, scaleParameters, debug,))
+        r = pool.apply_async(executorFunc, (driverClass, scaleParameters, args, config, debug,))
         worker_results.append(r)
     ## FOR
     pool.close()
@@ -96,9 +151,9 @@ def startExecution(driverClass, scaleParameters, args, config):
 ## DEF
 
 ## ==============================================
-## workerFunc
+## executorFunc
 ## ==============================================
-def workerFunc(driverClass, args, config, scaleParameters, debug):
+def executorFunc(driverClass, scaleParameters, args, config, debug):
     driver = driverClass(args['ddl'])
     assert driver != None
     logging.debug("Starting client execution: %s" % driver)
@@ -172,6 +227,7 @@ if __name__ == '__main__':
         defaultConfig = driver.makeDefaultConfig()
         config = dict(map(lambda x: (x, defaultConfig[x][1]), defaultConfig.keys()))
     config['reset'] = args['reset']
+    config['load'] = False
     config['execute'] = False
     if config['reset']: logging.info("Reseting database")
     driver.loadConfig(config)
@@ -185,12 +241,15 @@ if __name__ == '__main__':
     ## DATA LOADER!!!
     load_time = None
     if not args['no_load']:
-        l = loader.Loader(driver, scaleParameters)
         logging.info("Loading TPC-C benchmark data using %s" % (driver))
         load_start = time.time()
-        driver.loadStart()
-        l.execute()
-        driver.loadFinish()
+        if args['clients'] == 1:
+            l = loader.Loader(driver, scaleParameters, range(scaleParameters.starting_warehouse, scaleParameters.ending_warehouse+1), True)
+            driver.loadStart()
+            l.execute()
+            driver.loadFinish()
+        else:
+            startLoading(driverClass, scaleParameters, args, config)
         load_time = time.time() - load_start
     ## IF
     

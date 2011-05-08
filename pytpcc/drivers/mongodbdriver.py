@@ -247,7 +247,8 @@ class MongodbDriver(AbstractDriver):
         ## IF
         
         ## Setup!
-        load_indexes = ('execute' in config and not config['execute'])
+        load_indexes = ('execute' in config and not config['execute']) and \
+                       ('load' in config and not config['load'])
         for name in constants.ALL_TABLES:
             if self.denormalize and name in MongodbDriver.DENORMALIZED_TABLES[1:]: continue
             
