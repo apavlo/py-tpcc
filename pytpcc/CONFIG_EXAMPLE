@@ -1,0 +1,17 @@
+# HypertableDriver Configuration File
+# Created 2011-05-02 01:43:37.859545
+[hypertable]
+
+# hostname
+host                 = localhost
+
+# namespace name
+namespace            = tpcc
+
+# port
+port                 = 38080
+
+#clientnodes splited by spaces
+clients              =u1 u2 192.168.3.21 
+#directories of the code on the client node
+path                 =./code/tpcc/py-tpcc/mtpcc

@@ -1,0 +1,8 @@
+1. 3 newly added files message.py worker.py coordinator.py. Copy them into the old pytpcc directory.
+2. Coordinator is the main part. Use it like the old tpcc.py. e.g., python coordinator.py --config hypertable.config --clientprocs 5 hypertable
+3. Old argument --clients is replaced with --clientprocs, which specifies how many worker processes you want to run on each client node.
+4. All clientnodes(name or ip) must be specified in the configure file.
+5. The directory of the code on the client side should be specified in the configure file,too. The default address is user's home address, which is default using ssh.
+   It should remain the same for each client node, which is not a problem for now.
+6. Execnet python module should be installed on each client. Here is how to install it. http://codespeak.net/execnet/install.html
+     
