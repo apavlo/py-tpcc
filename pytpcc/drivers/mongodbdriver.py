@@ -259,7 +259,8 @@ class MongodbDriver(AbstractDriver):
             if load_indexes and name in TABLE_INDEXES and \
             (self.denormalize or (self.denormalize == False and not name in MongodbDriver.DENORMALIZED_TABLES[1:])):
                 logging.debug("Creating index for %s" % name)
-                self.database[name].create_index(map(lambda x: (x, pymongo.ASCENDING), TABLE_INDEXES[name]))
+                for index in TABLE_INDEXES[name]:
+                	self.database[name].create_index(index)
         ## FOR
     
     ## ----------------------------------------------
