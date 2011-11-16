@@ -55,7 +55,7 @@ class CassandraDriver(AbstractDriver):
     def __init__(self, ddl):
         super(CassandraDriver,self).__init__("cassandra",ddl)
         self.conn = None
-        self.name = "Cassandra"
+        self.name = "cassandra"
         self.database = None
 
         self.new_ordercf= None
@@ -87,7 +87,7 @@ class CassandraDriver(AbstractDriver):
                fl = 1
                break
         if fl == 0:     
-	    self.sys.create_keyspace(keyspace, replication_factor = config["replicationfactor"])
+            self.sys.create_keyspace(keyspace, SIMPLE_STRATEGY,{'replication_factor' : str(config["replicationfactor"])})
             self.sys.create_column_family(keyspace, 'NEW_ORDER', comparator_type = UTF8_TYPE)
             self.sys.create_column_family(keyspace, 'ORDERS', comparator_type = UTF8_TYPE)
             self.sys.create_column_family(keyspace, 'ORDER_LINE', comparator_type = UTF8_TYPE)
@@ -386,7 +386,7 @@ class CassandraDriver(AbstractDriver):
                 h_amount = str(tuples[i][6])
                 h_data = str(tuples[i][7])
                 col_fam.insert(row_key, {'H_C_ID':h_c_id, 'H_C_D_ID':h_c_d_id, 'H_C_W_ID':h_c_w_id, 'H_D_ID':h_d_id, 'H_W_ID':h_w_id, 'H_DATE':h_date,'H_AMOUNT':h_amount, 'H_DATA':h_data})
-        print tableName+'--' + str(len(tuples))
+#   print tableName+'--' + str(len(tuples))
                  
     def loadFinish(self):
          logging.info("Commiting changes to database")
@@ -414,7 +414,7 @@ class CassandraDriver(AbstractDriver):
             newOrder=self.new_ordercf.get_indexed_slices(clause)
             flag=0
             for key, column in newOrder:
-                print column
+                #print column
                 no_o_id=column['NO_O_ID']
                 flag=1
             if flag==0:
@@ -590,7 +590,7 @@ class CassandraDriver(AbstractDriver):
     ##----------------------------
 
     def doPayment(self, params):
-        logging.info("do payment")
+        logging.debug("do payment")
         w_id = params["w_id"]
         d_id = params["d_id"]
         h_amount = params["h_amount"]
