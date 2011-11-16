@@ -55,7 +55,7 @@ class CassandraDriver(AbstractDriver):
     def __init__(self, ddl):
         super(CassandraDriver,self).__init__("cassandra",ddl)
         self.conn = None
-        self.name = "Cassandra"
+        self.name = "cassandra"
         self.database = None
 
         self.new_ordercf= None
