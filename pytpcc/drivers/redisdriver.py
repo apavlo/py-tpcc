@@ -1615,7 +1615,7 @@ class RedisDriver(AbstractDriver):
 				pass
 			self.next_scores[tableName] += 1
 			
-			print key,
+			#print key,
 			# Check to see if pipelines need to be flushed
 			for index in range(len(self.w_pipes)) :
 				if self.w_sizes[index] > 10000 :
