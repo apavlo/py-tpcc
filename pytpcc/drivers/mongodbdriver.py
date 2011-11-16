@@ -233,7 +233,7 @@ class MongodbDriver(AbstractDriver):
         for key in MongodbDriver.DEFAULT_CONFIG.keys():
             assert key in config, "Missing parameter '%s' in %s configuration" % (key, self.name)
         
-        self.conn = pymongo.Connection(config['host'], config['port'])
+        self.conn = pymongo.Connection(config['host'], int(config['port']))
         self.database = self.conn[str(config['name'])]
         self.denormalize = config['denormalize']
         if self.denormalize: logging.debug("Using denormalized data model")
