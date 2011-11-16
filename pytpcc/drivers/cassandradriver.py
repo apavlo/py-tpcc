@@ -87,7 +87,7 @@ class CassandraDriver(AbstractDriver):
                fl = 1
                break
         if fl == 0:     
-	    self.sys.create_keyspace(keyspace, replication_factor = config["replicationfactor"])
+            self.sys.create_keyspace(keyspace, SIMPLE_STRATEGY,{'replication_factor' : str(config["replicationfactor"])})
             self.sys.create_column_family(keyspace, 'NEW_ORDER', comparator_type = UTF8_TYPE)
             self.sys.create_column_family(keyspace, 'ORDERS', comparator_type = UTF8_TYPE)
             self.sys.create_column_family(keyspace, 'ORDER_LINE', comparator_type = UTF8_TYPE)
