@@ -386,7 +386,7 @@ class CassandraDriver(AbstractDriver):
                 h_amount = str(tuples[i][6])
                 h_data = str(tuples[i][7])
                 col_fam.insert(row_key, {'H_C_ID':h_c_id, 'H_C_D_ID':h_c_d_id, 'H_C_W_ID':h_c_w_id, 'H_D_ID':h_d_id, 'H_W_ID':h_w_id, 'H_DATE':h_date,'H_AMOUNT':h_amount, 'H_DATA':h_data})
-        print tableName+'--' + str(len(tuples))
+#   print tableName+'--' + str(len(tuples))
                  
     def loadFinish(self):
          logging.info("Commiting changes to database")
@@ -414,7 +414,7 @@ class CassandraDriver(AbstractDriver):
             newOrder=self.new_ordercf.get_indexed_slices(clause)
             flag=0
             for key, column in newOrder:
-                print column
+                #print column
                 no_o_id=column['NO_O_ID']
                 flag=1
             if flag==0:
