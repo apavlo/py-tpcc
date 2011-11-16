@@ -590,7 +590,7 @@ class CassandraDriver(AbstractDriver):
     ##----------------------------
 
     def doPayment(self, params):
-        logging.info("do payment")
+        logging.debug("do payment")
         w_id = params["w_id"]
         d_id = params["d_id"]
         h_amount = params["h_amount"]
