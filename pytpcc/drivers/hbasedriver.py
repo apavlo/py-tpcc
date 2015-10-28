@@ -733,10 +733,13 @@ class HbaseDriver(AbstractDriver):
             scanner = self.order_line_tbl.getScanner(s)
             ol_total = 0.0
             scanner_count = 0
+            rows = [ ]
             for res in scanner:
+                rows.append(res.getRow())
                 scanner_count = scanner_count + 1
                 ol_total = ol_total + Bytes.toFloat(res.getValue(self.col_fam1,COLUMN_NAME["OL_AMOUNT"]))    
             ## FOR
+            scanner.close()
 
             ## deleteNewOrder
             row_key = self.getRowKey([w_id, d_id, no_o_id])
@@ -752,14 +755,12 @@ class HbaseDriver(AbstractDriver):
                   
             ## updateOrderLine
             ## get the rows to update from results of sumOLAmount
-            for res in scanner:
-                current_row = res.getRow()
+            for current_row in rows:
                 put = Put(current_row)
                 put.setWriteToWAL(WRITE_TO_WAL)
                 put.add(self.col_fam1, COLUMN_NAME["OL_DELIVERY_D"], Bytes.toBytes(String(str(ol_delivery_d))))
                 self.order_line_tbl.put(put)
             ## FOR
-            scanner.close()
 
             # These must be logged in the "result file" according to TPC-C 2.7.2.2 (page 39)
             # We remove the queued time, completed time, w_id, and o_carrier_id: the client can figure
