@@ -133,7 +133,7 @@ class Loader:
             ol_tuples = [ ]
             no_tuples = [ ]
             
-            for o_id in range(1, self.scaleParameters.customersPerDistrict):
+            for o_id in range(1, self.scaleParameters.customersPerDistrict+1):
                 o_ol_cnt = rand.number(constants.MIN_OL_CNT, constants.MAX_OL_CNT)
                 
                 ## The last newOrdersPerDistrict are new orders
