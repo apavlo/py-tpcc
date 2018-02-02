@@ -138,7 +138,10 @@ class Executor:
             if rollback and i + 1 == ol_cnt:
                 i_ids.append(self.scaleParameters.items + 1)
             else:
-                i_ids.append(self.makeItemId())
+                i_id = self.makeItemId()
+                while i_id in i_ids:
+                    i_id = self.makeItemId()
+                i_ids.append(i_id)
 
             ## 1% of items are from a remote warehouse
             remote = (rand.number(1, 100) == 1)
