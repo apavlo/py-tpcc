@@ -727,7 +727,7 @@ class MongodbDriver(AbstractDriver):
         assert w
         
         # updateWarehouseBalance
-        self.warehouse.update({"_id": w["_id"]}, {"$inc": {"H_AMOUNT": h_amount}})
+        self.warehouse.update({"_id": w["_id"]}, {"$inc": {"W_YTD": h_amount}})
 
         # getDistrict
         d = self.district.find_one({"D_W_ID": w_id, "D_ID": d_id}, {"D_NAME": 1, "D_STREET_1": 1, "D_STREET_2": 1, "D_CITY": 1, "D_STATE": 1, "D_ZIP": 1})
